@@ -21,9 +21,7 @@
 - ✅ `src/app/api/workspaces/route.ts` - Added logger and updated all logging
 - ✅ `src/app/api/analyze/route.ts` - Added logger and updated all logging
 - ✅ `src/app/api/workspace/[slug]/route.ts` - Added logger and updated logging
-
-#### Partially Updated:
-- ⚠️ `src/app/api/finance/openai/route.ts` - Import added, but console statements need manual update
+- ✅ `src/app/api/finance/route.ts` - Added logger and updated all logging
 
 ## Files Still Need ing Updates
 
@@ -39,10 +37,10 @@ The following files still have console statements that should be updated to use 
 7. `src/components/ApiDebugger.tsx` - console.log and console.error calls
 
 ### API Routes:
-8. `src/app/api/finance/openai/route.ts` - All console.log/error/warn calls (about 20 occurrences)
+1. `src/app/api/finance/openai/route.ts` - All console.log/error/warn calls (about 20 occurrences)
 
 ### Admin Pages:
-9. `src/app/admin/page.tsx` - console.error calls
+9. `src/app/admin/page.tsx` - console.error calls (about 20 occurrences)
 
 ## How to Complete the Migration
 
