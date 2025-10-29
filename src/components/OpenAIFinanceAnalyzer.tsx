@@ -175,7 +175,7 @@ export default function OpenAIFinanceAnalyzer() {
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">OpenAI Cloud based Financial Analysis</h2>
         <p className="text-gray-600 mb-6">
-          Upload financial documents (PDF, Excel, or Word) to analyze them using OpenAI&apos;s Responses API. This method works independently of local AnythingLLM workspaces.
+          Upload financial documents (PDF, Excel, or Word) to analyze them using OpenAI&apos;s Responses API. This method works independently of local AnythingLLM workspaces. You can also download files from Analysis View and re-upload them here for OpenAI analysis.
         </p>
 
         {/* File Input */}

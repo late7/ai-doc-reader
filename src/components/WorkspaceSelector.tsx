@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { logger } from '@/lib/logger';
 
 // Import constants from anythingllm.ts
-const ANYTHINGLLM_ENDPOINT = process.env.NEXT_PUBLIC_ANYTHINGLLM_ENDPOINT || 'http://localhost:62934';
+const ANYTHINGLLM_ENDPOINT = process.env.NEXT_PUBLIC_ANYTHINGLLM_ENDPOINT || 'http://localhost:3001';
 
 interface Workspace {
   id: number;  // Changed from string to number to match API response

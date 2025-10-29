@@ -56,7 +56,7 @@ export async function POST(request: Request) {
         );
       }
       
-  // Build prompt without deprecated prefix/suffix, using global company summary style as base formatting
+  // Build prompt without deprecated prefix/suffix, using global summary style as base formatting
   prompt = `${category.prompt} \n Focus specifically on this question in your answer: ${adHocQuestion} \n ${formattingPrompt.prompt}`;
       // logger.debug('Question found:', question.title);
       logger.debug('Using category prompt:', category.prompt);
@@ -78,12 +78,12 @@ export async function POST(request: Request) {
       logger.debug('Processing custom prompt');
       prompt = customPrompt;
     } else {
-      logger.debug('Processing company summary (default)');
-      // Default company summary
-  // Use company summary from global prompts file if available
+      logger.debug('Processing summary (default)');
+      // Default  summary
+  // Use summary from global prompts file if available
   // @ts-ignore - backward compatibility if old structure remains in questionsConfig
   const summary = globalPrompts?.prompts?.companySummary || questionsConfig?.prompts?.companySummary || '';
-  // For company summary we intentionally do NOT apply formattingPrompt guidance (applies only to questions)
+  // For summary we intentionally do NOT apply formattingPrompt guidance (applies only to questions)
   prompt = summary.trim();
     }
 

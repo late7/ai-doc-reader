@@ -48,6 +48,7 @@ export default function AdminPage() {
   const [newQuestion, setNewQuestion] = useState<Partial<Question>>({});
   const [newCategory, setNewCategory] = useState<Partial<Category>>({});
   const [creatingNewCategory, setCreatingNewCategory] = useState(false);
+  const [financeEnabled, setFinanceEnabled] = useState(true);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [showGlobalPrompts, setShowGlobalPrompts] = useState(false); // collapsed by default
   const [showNewQuestion, setShowNewQuestion] = useState(false); // Add Question collapsed by default
@@ -55,6 +56,46 @@ export default function AdminPage() {
   useEffect(() => {
     fetchConfigs();
   }, []);
+
+  // Load finance setting from system config
+  useEffect(() => {
+    const loadSystemConfig = async () => {
+      try {
+        const response = await fetch('/api/system');
+        if (response.ok) {
+          const config = await response.json();
+          setFinanceEnabled(config.financeEnabled ?? true);
+        }
+      } catch (error) {
+        console.error('Failed to load system config:', error);
+        // Default to true if config can't be loaded
+        setFinanceEnabled(true);
+      }
+    };
+    loadSystemConfig();
+  }, []);
+
+  // Save finance toggle state to system config
+  const saveFinanceSetting = async (enabled: boolean) => {
+    try {
+      const response = await fetch('/api/system', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ financeEnabled: enabled })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to save finance setting');
+      }
+    } catch (error) {
+      console.error('Error saving finance setting:', error);
+      alert('Failed to save finance setting');
+    }
+  };
+
+  const handleFinanceToggle = async (enabled: boolean) => {
+    setFinanceEnabled(enabled);
+    await saveFinanceSetting(enabled);
+  };
 
   // Keep newQuestion.category aligned with currently selected category so the Add Question button can enable
   useEffect(() => {
@@ -314,19 +355,37 @@ export default function AdminPage() {
                 Admin Panel - Questions Configuration
               </h1>
               <p className="text-gray-800">
-                Manage analysis questions and prompts for the VC dashboard
+                Manage analysis questions and prompts for the Analysis dashboard
               </p>
-              <p className="text-sm text-gray-700 mt-1">
-                📁 Categories loaded from <code>categoryPrompts.json</code> • Questions from <code>questions.json</code>
-              </p>
+
             </div>
             <div className="flex space-x-4">
-              <Link 
-                href="/finance"
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium transition-colors"
-              >
-                💰 Finance
-              </Link>
+              <div className="flex items-center space-x-2">
+                <label htmlFor="finance-toggle" className="text-sm font-medium text-gray-700">
+                  Finance
+                </label>
+                <button
+                  id="finance-toggle"
+                  onClick={() => handleFinanceToggle(!financeEnabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                    financeEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      financeEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              {financeEnabled && (
+                <Link 
+                  href="/finance"
+                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium transition-colors"
+                >
+                  💰 Finance
+                </Link>
+              )}
               <Link 
                 href="/dashboard"
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
@@ -670,7 +729,11 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+                            <p className="text-sm text-gray-700 mt-1">
+                📁 Categories loaded from <code>categoryPrompts.json</code> • Questions from <code>questions.json</code> • Global Prompts from <code>globalPrompts.json</code> and <code>formattingPromptConfig.json</code>
+              </p>
       </div>
+
     </div>
   );
 }

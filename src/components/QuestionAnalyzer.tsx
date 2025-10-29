@@ -49,7 +49,7 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [collapsedSources, setCollapsedSources] = useState<Set<string>>(new Set());
-  const [summaryCollapsed, setSummaryCollapsed] = useState(false); // Company Summary collapse state
+  const [summaryCollapsed, setSummaryCollapsed] = useState(false); // Summary collapse state
   const [adHocInputs, setAdHocInputs] = useState<Record<string, string>>({});
   const [adHocLoading, setAdHocLoading] = useState<Set<string>>(new Set());
   const [runningAll, setRunningAll] = useState(false);
@@ -86,7 +86,7 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
   };
 
   const generateCompanySummary = async () => {
-    console.log('Generate company summary clicked');
+    console.log('Generate summary clicked');
     setSummaryLoading(true);
     try {
       console.log('Sending request to /api/analyze with workspaceSlug:', workspaceSlug);
@@ -108,11 +108,11 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
       console.log('API response data:', data);
       
       const summaryText = data.textResponse || data.response || 'No response generated';
-      console.log('Setting company summary:', summaryText);
+      console.log('Setting summary:', summaryText);
       setCompanySummary(summaryText);
     } catch (error) {
       console.error('Error generating summary:', error);
-      alert('Failed to generate company summary');
+      alert('Failed to generate Summary');
     } finally {
       setSummaryLoading(false);
     }
@@ -378,8 +378,8 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
       doc.text(`Generated: ${new Date().toLocaleString()}`, left, y);
       y += lineHeight + 4;
 
-      // Company Summary
-      addHeading('Company Summary');
+      //  Summary
+      addHeading('Summary');
       addBody(companySummary || 'No summary generated yet.');
 
       // Questions
@@ -528,7 +528,7 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
 
   return (
     <div className="space-y-4">
-      {/* Company Summary Section */}
+      {/* Summary Section */}
       <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">
@@ -536,11 +536,11 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
               onClick={() => setSummaryCollapsed(c => !c)}
               className="w-7 h-7 flex items-center justify-center rounded-full bg-white border border-blue-200 hover:bg-blue-100 transition"
               aria-expanded={!summaryCollapsed}
-              aria-label={summaryCollapsed ? 'Expand company summary' : 'Collapse company summary'}
+              aria-label={summaryCollapsed ? 'Expand Summary' : 'Collapse Summary'}
             >
               <span className={`transition-transform ${summaryCollapsed ? '' : 'rotate-90'}`}>▶</span>
             </button>
-            <h2 className="text-xl font-bold text-gray-800">Company Summary</h2>
+            <h2 className="text-xl font-bold text-gray-800">Summary</h2>
           </div>
           <div className="flex items-center gap-2">
             {companySummary && (

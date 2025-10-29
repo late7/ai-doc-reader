@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import WorkspaceSelector from '@/components/WorkspaceSelector';
 import DocumentUploader, { DocumentUploaderRef } from '@/components/DocumentUploader';
@@ -24,6 +24,7 @@ interface Workspace {
 export default function Dashboard() {
   const [selectedWorkspace, setSelectedWorkspace] = usePersistentWorkspace();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [financeEnabled, setFinanceEnabled] = useState(true);
   const documentUploaderRef = useRef<DocumentUploaderRef>(null);
   const analyzerRef = useRef<QuestionAnalyzerRef>(null);
 
@@ -37,6 +38,24 @@ export default function Dashboard() {
     // Refresh any components that need to update after upload
     setRefreshKey(prev => prev + 1);
   };
+
+  // Load finance setting from system config
+  useEffect(() => {
+    const loadSystemConfig = async () => {
+      try {
+        const response = await fetch('/api/system');
+        if (response.ok) {
+          const config = await response.json();
+          setFinanceEnabled(config.financeEnabled ?? true);
+        }
+      } catch (error) {
+        console.error('Failed to load system config:', error);
+        // Default to true if config can't be loaded
+        setFinanceEnabled(true);
+      }
+    };
+    loadSystemConfig();
+  }, []);
 
   const refreshDocuments = () => {
     if (documentUploaderRef.current) {
@@ -70,12 +89,14 @@ export default function Dashboard() {
                   Export Report
                 </button>
               )}
-              <Link 
-                href="/finance"
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium transition-colors"
-              >
-                💰 Finance
-              </Link>
+              {financeEnabled && (
+                <Link 
+                  href="/finance"
+                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium transition-colors"
+                >
+                  💰 Finance
+                </Link>
+              )}
               <Link 
                 href="/admin"
                 className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm font-medium transition-colors"
