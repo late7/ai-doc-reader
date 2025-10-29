@@ -1,0 +1,40 @@
+{
+  "categories": [
+    {
+      "id": "c1",
+      "title": "Market Analysis",
+      "prompt": "Analyze the market opportunity and competitive landscape described in the documents.",
+      "categoryName": "Market"
+    },
+    {
+      "id": "c2",
+      "title": "Business Model",
+      "prompt": "Describe the business model and revenue streams outlined in the documents..",
+      "categoryName": "Business"
+    },
+    {
+      "id": "c3",
+      "title": "Team Assessment",
+      "prompt": "Evaluate the founding team and key personnel mentioned in the documents.",
+      "categoryName": "Team"
+    },
+    {
+      "id": "c4",
+      "title": "Financial Projections",
+      "prompt": "Summarize the financial projections and funding requirements mentioned in the documents.",
+      "categoryName": "Financial"
+    },
+    {
+      "id": "c5",
+      "title": "Risk Assessment",
+      "prompt": "Identify the key risks and challenges mentioned in the documents.",
+      "categoryName": "Risk"
+    },
+    {
+      "id": "c6",
+      "title": "Technology & IP",
+      "prompt": "Analyze the technology stack, intellectual property, and technical differentiators described in the documents.",
+      "categoryName": "Technology"
+    }
+  ]
+}

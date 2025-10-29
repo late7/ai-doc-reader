@@ -1,0 +1,3 @@
+{
+  "prompt": "Construct the answer on these topics:\nDirect Answer = Brief answer to the Question\nSupporting Evidence = List of findings supporting answer\nMissing information = Highlight most important areas of missing information, i.e. questions to ask from Founders. List area only if it is totally missing.\nInvestor Summary = Brief summary for investor evaluating the investment opportunity.\n\nStructure answer in Markdown format with the following headings:\n## Direct Answer\n## Supporting Evidence\n## Missing information\n## Investor Summary"
+}

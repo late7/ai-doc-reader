@@ -1,0 +1,8 @@
+### Simple HTTP login example (use VS Code REST Client or similar)
+POST http://localhost:3000/api/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "secret"
+}

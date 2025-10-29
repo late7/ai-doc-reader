@@ -1,0 +1,64 @@
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "What is the total addressable market (TAM)?",
+      "category": "Market"
+    },
+    {
+      "id": "q11",
+      "question": "Who are the main competitors of the company?",
+      "category": "Market"
+    },
+    {
+      "id": "q1756329001001",
+      "question": "What is the company’s customer acquisition strategy?",
+      "category": "Business"
+    },
+    {
+      "id": "q1756321725002",
+      "question": "Who form the core Team?",
+      "category": "Team"
+    },
+    {
+      "id": "q4",
+      "question": "What are the key financial metrics?",
+      "category": "Financial"
+    },
+    {
+      "id": "q1756329001002",
+      "question": "What is the company’s burn rate?",
+      "category": "Financial"
+    },
+    {
+      "id": "q5",
+      "question": "What are the identified risks and mitigation strategies?",
+      "category": "Risk"
+    },
+    {
+      "id": "q1756329001003",
+      "question": "What are the key external and market risks the company faces?",
+      "category": "Risk"
+    },
+    {
+      "id": "q1756324580118",
+      "question": "Does company have patents?",
+      "category": "Technology"
+    },
+    {
+      "id": "q1756329001004",
+      "question": "What is the scalability and defensibility of the technology?",
+      "category": "Technology"
+    },
+    {
+      "id": "q1756385725645",
+      "question": "Look if company has patents, compare on the detail level if the actual business is likely the same as where patent was granted?",
+      "category": "Technology"
+    },
+    {
+      "id": "q1756446853000",
+      "question": "How company generates revenue? ",
+      "category": "Business"
+    }
+  ]
+}

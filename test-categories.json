@@ -1,0 +1,16 @@
+{
+  "categories": [
+    {
+      "id": "c1",
+      "title": "Market Analysis Updated",
+      "prompt": "Analyze the market opportunity and competitive landscape described in the documents.",
+      "categoryName": "Market"
+    },
+    {
+      "id": "c2",
+      "title": "Business Model",
+      "prompt": "Describe the business model and revenue streams outlined in the documents.",
+      "categoryName": "Business"
+    }
+  ]
+}

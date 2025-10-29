@@ -1,0 +1,60 @@
+{
+  "figures": [
+    {
+      "id": "revenue",
+      "name": "Revenue",
+      "description": "Total revenue, net sales, turnover - the total income from all sources before any expenses are deducted",
+      "enabled": true,
+      "order": 1
+    },
+    {
+      "id": "investments",
+      "name": "Investments",
+      "description": "All expenses related to developing the company, building capacity etc. Not running costs.",
+      "enabled": true,
+      "order": 2
+    },
+    {
+      "id": "ongoing_operating_expenses",
+      "name": "Ongoing Operating Expenses",
+      "description": "Total costs, expenses, cost of goods sold, operating expenses - all expenses incurred in running the business excluding investments",
+      "enabled": true,
+      "order": 3
+    },
+    {
+      "id": "ebit",
+      "name": "EBIT",
+      "description": "Earnings before interest and Taxes",
+      "enabled": true,
+      "order": 4
+    },
+    {
+      "id": "profit",
+      "name": "Profit",
+      "description": "Net profit, net income, profit after tax - the final profit figure after all expenses, taxes, and costs have been deducted.",
+      "enabled": true,
+      "order": 5
+    },
+    {
+      "id": "funding_raised",
+      "name": "Funding raised",
+      "description": "All cumulative funding combined until now. No loans.",
+      "enabled": true,
+      "order": 6
+    },
+    {
+      "id": "loans",
+      "name": "Loans",
+      "description": "All unpaid loans combined",
+      "enabled": true,
+      "order": 7
+    },
+    {
+      "id": "sales_estimate",
+      "name": "Sales Estimate",
+      "description": "Projected sales for future",
+      "enabled": true,
+      "order": 8
+    }
+  ]
+}

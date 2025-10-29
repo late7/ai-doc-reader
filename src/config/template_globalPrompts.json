@@ -1,0 +1,5 @@
+{
+  "prompts": {
+    "companySummary": "Create summary of the investment opportunity for the start-up company described in the documents. Use only the facts given in the documents.\n\nInvestor Oriented-Summary = Brief outlook of the investment opportunity\nAssumptions & Gaps in material = Highlight most important areas of missing information in documents regarding general Start-up core data, max 3 areas\nPotential for development = Identify missing capabilities or entities in the company that can be developed with VC monetary and advisory resources.\n\nStructure every answer in Markdown format with the following headings: \n## Investor Oriented-Summary\n## Assumptions & Gaps in material\n## Potential for development\n"
+  }
+}

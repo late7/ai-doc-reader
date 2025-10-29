@@ -1,0 +1,37 @@
+{
+  "name": "dd-vc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node scripts/init-config.js && next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "init-config": "node scripts/init-config.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/react": "^18.2.21",
+    "@types/react-dom": "^18.2.7",
+    "eslint": "^8.48.0",
+    "eslint-config-next": "^13.4.19",
+    "jspdf": "^2.5.2",
+    "next": "^13.4.19",
+    "openai": "^6.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
+    "typescript": "^5.2.2",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.16",
+    "@types/node": "^20.5.9",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.24",
+    "tailwindcss": "^3.3.3"
+  }
+}
