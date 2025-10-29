@@ -1,6 +1,6 @@
-# DD-VC: AI-Powered VC Analysis Platform
+# AI-Powered Document Analysis Platform
 
-A comprehensive Venture Capital analysis platform with AnythingLLM integration for AI-powered startup evaluation and financial analysis.
+A Web-based Document analysis platform with AnythingLLM integration for AI-powered document content and financial analysis.
 
 ## Features
 
@@ -8,10 +8,10 @@ A comprehensive Venture Capital analysis platform with AnythingLLM integration f
 - **Workspace Management**: Connect to AnythingLLM workspaces for document analysis with persistent selection
 - **Document Upload**: Upload pitch decks, business plans, and financial documents
 - **AI-Powered Analysis**: Generate insights using customizable question templates
-- **Company Summaries**: Automated investment opportunity summaries
+- **Doc Summaries**: Automated Data summaries
 - **Custom Questions**: Configurable analysis prompts for different evaluation criteria
 - **Financial Analysis**: AI-powered financial data extraction and analysis with OpenAI integration
-- **PDF Export**: Generate comprehensive VC analysis reports
+- **PDF Export**: Generate comprehensive analysis reports
 
 ### Admin Features
 - **Question Management**: Create, edit, and organize analysis questions
@@ -98,7 +98,7 @@ npm start
 1. **Access the Dashboard**: Navigate to `/dashboard`
 2. **Select Workspace**: Choose an AnythingLLM workspace from the dropdown (selection persists across sessions)
 3. **Upload Documents**: Drag and drop or select files for analysis
-4. **Generate Summary**: Click "Generate Summary" for company overview
+4. **Generate Summary**: Click "Generate Summary" for Document overview
 5. **Run Analysis**: Execute individual questions for detailed insights
 6. **Financial Analysis**: Access financial data extraction and analysis (if enabled by admin)
 7. **Add Notes**: Supplement AI analysis with additional observations
@@ -355,4 +355,4 @@ logger.error('Error message');
 
 ## License
 
-This project is proprietary software for VC analysis purposes.
+This project is proprietary software for document analysis purposes.

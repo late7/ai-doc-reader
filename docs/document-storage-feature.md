@@ -104,7 +104,7 @@ Our implementation handles this by:
 3. **Delete**: Same matching logic to find and delete the correct local file
 
 **Example:**
-- Original file: `Koll business plan 10_2025.docx.pdf`
-- Saved locally as: `Koll business plan 10_2025.docx.pdf`
-- AnythingLLM name: `Koll-business-plan-10_2025.docx.pdf-6d6395bc-9ee5-4a81-9505-2bc1a8667c7b.json`
-- Downloaded as: `Koll business plan 10_2025.docx.pdf`
+- Original file: `Company business plan 10_2025.docx.pdf`
+- Saved locally as: `Company business plan 10_2025.docx.pdf`
+- AnythingLLM name: `Company-business-plan-10_2025.docx.pdf-6d6395bc-9ee5-4a81-9505-2bc1a8667c7b.json`
+- Downloaded as: `Company business plan 10_2025.docx.pdf`

@@ -1,7 +1,7 @@
 {
-  "name": "dd-vc",
+  "name": "ai-doc-reader",
   "version": "1.0.0",
-  "description": "",
+  "description": "AI-powered Document analysis platform with AnythingLLM RAG integration for comprehensive document analysis and financial evaluation",
   "main": "index.js",
   "scripts": {
     "dev": "node scripts/init-config.js && next dev",

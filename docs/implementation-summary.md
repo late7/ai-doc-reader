@@ -38,8 +38,8 @@ AnythingLLM documents are now automatically saved to local storage and can be do
 
 #### Filename Handling Challenge
 AnythingLLM modifies filenames during processing:
-- **Original**: `Koll business plan 10_2025.docx.pdf`
-- **AnythingLLM**: `Koll-business-plan-10_2025.docx.pdf-6d6395bc-9ee5-4a81-9505-2bc1a8667c7b.json`
+- **Original**: `Company business plan 10_2025.docx.pdf`
+- **AnythingLLM**: `Company-business-plan-10_2025.docx.pdf-6d6395bc-9ee5-4a81-9505-2bc1a8667c7b.json`
   - Spaces → Hyphens
   - Adds UUID suffix
   - Adds `.json` extension
@@ -53,9 +53,9 @@ AnythingLLM modifies filenames during processing:
 
 #### Code Example (Download Logic)
 ```typescript
-// AnythingLLM filename: "Koll-business-plan-10_2025.docx.pdf-6d6395bc-...-json"
+// AnythingLLM filename: "Company-business-plan-10_2025.docx.pdf-6d6395bc-...-json"
 let originalFilename = filename.replace(/-[a-f0-9]{8}-...-[a-f0-9]{12}\.json$/, '');
-// Result: "Koll-business-plan-10_2025.docx.pdf"
+// Result: "Company-business-plan-10_2025.docx.pdf"
 
 // Find actual file with spaces
 const files = await fs.readdir(storageDir);
@@ -63,15 +63,15 @@ const matchingFile = files.find(f => {
   const normalized = f.replace(/\s+/g, '-');
   return normalized === originalFilename;
 });
-// Found: "Koll business plan 10_2025.docx.pdf"
+// Found: "Company business plan 10_2025.docx.pdf"
 ```
 
 ### File Organization
 ```
 storage/
-├── dd-koll2025/
-│   ├── Koll business plan 10_2025.docx.pdf
-│   └── Koll Pitch Deck October 2025.pptx.pdf
+├── dd-Company2025/
+│   ├── Company business plan 10_2025.docx.pdf
+│   └── Company Pitch Deck October 2025.pptx.pdf
 ├── dd-atb/
 │   └── ATB-Antivirals June-2025-Investment-Presentation.pdf
 └── another-workspace/

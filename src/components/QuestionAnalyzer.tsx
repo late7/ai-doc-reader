@@ -372,7 +372,7 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
       };
 
       // Document meta
-      addTitle('VC Analysis Report');
+      addTitle('Analysis Report');
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.text(`Generated: ${new Date().toLocaleString()}`, left, y);
@@ -408,7 +408,11 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
         });
       });
 
-  doc.save('vc-analysis-report.pdf');
+      // Generate filename with workspace name and timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5); // Format: YYYY-MM-DDTHH-MM-SS
+      const filename = `${workspaceSlug}-analysis-report-${timestamp}.pdf`;
+
+      doc.save(filename);
     } catch (e) {
       alert('Failed to generate PDF report');
       console.error(e);

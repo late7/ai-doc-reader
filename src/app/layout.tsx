@@ -10,8 +10,8 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'VC Analysis Dashboard',
-  description: 'Venture Capital analysis dashboard with AnythingLLM integration',
+  title: 'Analysis Dashboard',
+  description: 'Document analysis dashboard with AnythingLLM integration',
 }
 
 export default function RootLayout({
