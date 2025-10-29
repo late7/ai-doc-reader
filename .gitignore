@@ -102,7 +102,6 @@ build/
 # Temporary folders
 tmp/
 temp/
-src/app/api/documents/download/route.ts
 # Storage folder for uploaded files
 storage/
 
