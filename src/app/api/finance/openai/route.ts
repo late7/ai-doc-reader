@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { Buffer } from 'buffer';
-import { generateFinancePrompt, generateTimeSeriesFinancePrompt, FigureDefinition } from '@/lib/financePromptGenerator';
+import { generateFinancePrompt, generateTimeSeriesFinancePrompt, generateComprehensiveFinancePrompt, FigureDefinition } from '@/lib/financePromptGenerator';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
@@ -102,12 +102,19 @@ export async function POST(request: Request) {
 
     // Use the appropriate prompt generator based on analysis type
     const isTimeSeries = analysisType === 'timeseries';
-    const developerPrompt = isTimeSeries
-      ? generateTimeSeriesFinancePrompt('the company', true, overrideFigures)
-      : generateFinancePrompt('the company', true, overrideFigures);
+    const isComprehensive = analysisType === 'comprehensive';
+    
+    let developerPrompt: string;
+    if (isComprehensive) {
+      developerPrompt = generateComprehensiveFinancePrompt('the company', true);
+    } else if (isTimeSeries) {
+      developerPrompt = generateTimeSeriesFinancePrompt('the company', true, overrideFigures);
+    } else {
+      developerPrompt = generateFinancePrompt('the company', true, overrideFigures);
+    }
 
     logger.debug('Calling OpenAI Responses API for financial extraction');
-    logger.debug(`Analysis Type: ${isTimeSeries ? 'Time Series' : 'Basic'}`);
+    logger.debug(`Analysis Type: ${isComprehensive ? 'Comprehensive' : (isTimeSeries ? 'Time Series' : 'Basic')}`);
     logger.debug('Developer Prompt:', developerPrompt);
     
     logger.debug(`Using model: ${process.env.OPENAI_MODEL || 'gpt-5-mini'}`);
@@ -185,7 +192,7 @@ export async function POST(request: Request) {
       parsedData,
       filesProcessed: encodedFiles.length,
       responseId: response.id,
-      analysisType: isTimeSeries ? 'timeseries' : 'basic'
+      analysisType: isComprehensive ? 'comprehensive' : (isTimeSeries ? 'timeseries' : 'basic')
     });
 
   } catch (error) {

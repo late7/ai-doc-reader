@@ -37,10 +37,28 @@ interface TimeSeriesFinancialData {
   }>;
 }
 
-type FinancialData = BasicFinancialData | TimeSeriesFinancialData;
+interface ComprehensiveFinancialData {
+  company_name: string;
+  currency: string;
+  analysis_type: 'comprehensive';
+  extracted_data: Array<{
+    metric_name: string;
+    value: number | null;
+    currency: string;
+    period: string;
+    context: string;
+    category?: string;
+  }>;
+}
+
+type FinancialData = BasicFinancialData | TimeSeriesFinancialData | ComprehensiveFinancialData;
 
 function isTimeSeriesData(data: FinancialData): data is TimeSeriesFinancialData {
   return 'analysis_type' in data && data.analysis_type === 'timeseries';
+}
+
+function isComprehensiveData(data: FinancialData): data is ComprehensiveFinancialData {
+  return 'analysis_type' in data && data.analysis_type === 'comprehensive';
 }
 
 interface FinanceAnalyzerProps {
@@ -50,6 +68,7 @@ interface FinanceAnalyzerProps {
 
 export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: FinanceAnalyzerProps) {
   const [financialData, setFinancialData] = useState<FinancialData | null>(null);
+  const [comprehensiveData, setComprehensiveData] = useState<ComprehensiveFinancialData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analyzableFigures, setAnalyzableFigures] = useState<AnalyzableFigure[]>([]);
@@ -254,6 +273,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
 
     setLoading(true);
     setError(null);
+    setComprehensiveData(null);
 
     try {
       const payload: Record<string, unknown> = {
@@ -289,6 +309,42 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
         setFinancialData(result.parsedData);
       } else {
         throw new Error('No financial data received');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const analyzeComprehensive = async () => {
+    setLoading(true);
+    setError(null);
+    setFinancialData(null);
+
+    try {
+      const response = await fetch('/api/finance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          workspaceSlug,
+          companyName: workspaceName,
+          analysisType: 'comprehensive'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze comprehensive financial data');
+      }
+
+      const result = await response.json();
+
+      if (result.parsedData) {
+        setComprehensiveData(result.parsedData);
+      } else {
+        throw new Error('No comprehensive financial data received');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -352,7 +408,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
         ])
       ];
       ws['!cols'] = colWidths;
-    } else {
+    } else if (!isComprehensiveData(financialData)) {
       // Basic Analysis Excel Export
       const excelData = analyzableFigures.map(figure => {
         const figureData = financialData.financial_data[figure.id];
@@ -378,6 +434,8 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
         { wch: 50 } // Guidance
       ];
       ws['!cols'] = colWidths;
+    } else {
+      return; // Should not happen
     }
 
     // Create workbook
@@ -390,6 +448,55 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
     const fileName = `${safeWorkspace}_financial_data${analysisTypeSuffix}.xlsx`;
 
     // Save file
+    XLSX.writeFile(wb, fileName);
+  };
+
+  const downloadComprehensiveJSON = () => {
+    if (!comprehensiveData) return;
+
+    const dataStr = JSON.stringify(comprehensiveData, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+
+    const safeWorkspace = (workspaceSlug || workspaceName || 'workspace').replace(/[^a-zA-Z0-9-_]+/g, '_');
+    const exportFileDefaultName = `${safeWorkspace}_comprehensive_financial_data.json`;
+
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
+  const downloadComprehensiveExcel = () => {
+    if (!comprehensiveData) return;
+
+    const excelData = comprehensiveData.extracted_data.map(item => ({
+      Metric: item.metric_name,
+      Value: item.value ?? '',
+      Currency: item.currency || comprehensiveData.currency,
+      Period: item.period || '',
+      Category: item.category || '',
+      Context: item.context || ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+
+    // Set column widths
+    const colWidths = [
+      { wch: 25 }, // Metric
+      { wch: 15 }, // Value
+      { wch: 10 }, // Currency
+      { wch: 15 }, // Period
+      { wch: 15 }, // Category
+      { wch: 50 }  // Context
+    ];
+    ws['!cols'] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Comprehensive Data');
+
+    const safeWorkspace = (workspaceSlug || workspaceName || 'workspace').replace(/[^a-zA-Z0-9-_]+/g, '_');
+    const fileName = `${safeWorkspace}_comprehensive_financial_data.xlsx`;
+
     XLSX.writeFile(wb, fileName);
   };
 
@@ -533,7 +640,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
 
 
 
-      <div className="mt-6 pt-6 border-t border-gray-200">
+        <div className="mt-6 pt-6 border-t border-gray-200">
           <h4 className="text-base font-semibold text-gray-900 mb-3">Analysis Type</h4>
           <p className="text-sm text-gray-600 mb-4">Choose between basic single-period analysis or time series analysis across multiple years.</p>
           
@@ -568,8 +675,35 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
             </label>
           </div>
         </div>
-        
 
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <h4 className="text-base font-semibold text-gray-900 mb-3">Comprehensive Data Extraction</h4>
+          <p className="text-sm text-gray-600 mb-4">Extract all numerical financial data found in documents, including revenue, costs, metrics, and KPIs across all time periods.</p>
+          
+          <button
+            onClick={analyzeComprehensive}
+            disabled={loading}
+            className="flex items-center px-5 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+          >
+            {loading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Extracting...
+              </>
+            ) : (
+              <>
+                <svg className="mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Extract All Financial Data
+              </>
+            )}
+          </button>
+        </div>
+        
 
 
       </div>
@@ -661,6 +795,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {analyzableFigures.map((figure) => {
+                      if (isComprehensiveData(financialData)) return null;
                       const figureData = financialData.financial_data[figure.id];
                       if (!figureData || 'years' in figureData) return null;
                       
@@ -700,6 +835,92 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
             </button>
             <button
               onClick={downloadExcel}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
+            >
+              <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Download Excel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {comprehensiveData && (
+        <div className="space-y-6">
+          {/* Comprehensive Results Table */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Comprehensive Financial Data - {comprehensiveData.company_name || 'Unknown Company'}
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              All numerical financial data extracted from documents ({comprehensiveData.extracted_data.length} items found)
+            </p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Metric
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Value
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Currency
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Period
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Category
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Context
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {comprehensiveData.extracted_data.map((item, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {item.metric_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatCurrency(item.value, item.currency || comprehensiveData.currency)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.currency || comprehensiveData.currency}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.period || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.category || 'General'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 max-w-md">
+                        {item.context || 'No additional context'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Download Buttons for Comprehensive Data */}
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={downloadComprehensiveJSON}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+            >
+              <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Download JSON
+            </button>
+            <button
+              onClick={downloadComprehensiveExcel}
               className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
             >
               <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { anythingLLM } from '@/lib/anythingllm';
-import { FigureDefinition, generateFinancePrompt, generateTimeSeriesFinancePrompt } from '@/lib/financePromptGenerator';
+import { FigureDefinition, generateFinancePrompt, generateTimeSeriesFinancePrompt, generateComprehensiveFinancePrompt } from '@/lib/financePromptGenerator';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
@@ -54,11 +54,18 @@ export async function POST(request: Request) {
 
     // Build the finance analysis prompt based on analysis type
     const isTimeSeries = analysisType === 'timeseries';
-    const prompt = isTimeSeries
-      ? generateTimeSeriesFinancePrompt(companyName, false, overrideFigures)
-      : generateFinancePrompt(companyName, false, overrideFigures);
+    const isComprehensive = analysisType === 'comprehensive';
+    
+    let prompt: string;
+    if (isComprehensive) {
+      prompt = generateComprehensiveFinancePrompt(companyName, false);
+    } else if (isTimeSeries) {
+      prompt = generateTimeSeriesFinancePrompt(companyName, false, overrideFigures);
+    } else {
+      prompt = generateFinancePrompt(companyName, false, overrideFigures);
+    }
 
-    logger.debug('Sending finance prompt to AnythingLLM:', { prompt, isTimeSeries });
+    logger.debug('Sending finance prompt to AnythingLLM:', { prompt, analysisType });
     const result = await anythingLLM.sendMessage(workspaceSlug, prompt);
     logger.debug('AnythingLLM finance result received:', result);
 
@@ -88,7 +95,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ...result,
       parsedData,
-      analysisType: isTimeSeries ? 'timeseries' : 'basic'
+      analysisType: isComprehensive ? 'comprehensive' : (isTimeSeries ? 'timeseries' : 'basic')
     });
   } catch (error) {
     logger.error('Error in finance analysis:', error);

@@ -37,15 +37,34 @@ interface TimeSeriesFinancialData {
   }>;
 }
 
-type FinancialData = BasicFinancialData | TimeSeriesFinancialData;
+interface ComprehensiveFinancialData {
+  company_name: string;
+  currency: string;
+  analysis_type: 'comprehensive';
+  extracted_data: Array<{
+    metric_name: string;
+    value: number | null;
+    currency: string;
+    period: string;
+    context: string;
+    category?: string;
+  }>;
+}
+
+type FinancialData = BasicFinancialData | TimeSeriesFinancialData | ComprehensiveFinancialData;
 
 function isTimeSeriesData(data: FinancialData): data is TimeSeriesFinancialData {
   return 'analysis_type' in data && data.analysis_type === 'timeseries';
 }
 
+function isComprehensiveData(data: FinancialData): data is ComprehensiveFinancialData {
+  return 'analysis_type' in data && data.analysis_type === 'comprehensive';
+}
+
 export default function OpenAIFinanceAnalyzer() {
   const [files, setFiles] = useState<File[]>([]);
   const [financialData, setFinancialData] = useState<FinancialData | null>(null);
+  const [comprehensiveData, setComprehensiveData] = useState<ComprehensiveFinancialData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analyzableFigures, setAnalyzableFigures] = useState<AnalyzableFigure[]>([]);
@@ -317,6 +336,7 @@ export default function OpenAIFinanceAnalyzer() {
 
     setLoading(true);
     setError(null);
+    setComprehensiveData(null);
 
     try {
       const formData = new FormData();
@@ -353,6 +373,48 @@ export default function OpenAIFinanceAnalyzer() {
         setFinancialData(result.parsedData);
       } else {
         throw new Error('No financial data received');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const analyzeComprehensiveWithOpenAI = async () => {
+    if (files.length === 0) {
+      setError('Please select at least one PDF file');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setFinancialData(null);
+
+    try {
+      const formData = new FormData();
+      files.forEach((file, index) => {
+        formData.append(`file_${index}`, file);
+      });
+
+      formData.append('analysisType', 'comprehensive');
+
+      const response = await fetch('/api/finance/openai', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to analyze files with OpenAI');
+      }
+
+      const result = await response.json();
+
+      if (result.parsedData) {
+        setComprehensiveData(result.parsedData);
+      } else {
+        throw new Error('No comprehensive financial data received');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -414,7 +476,7 @@ export default function OpenAIFinanceAnalyzer() {
         ])
       ];
       ws['!cols'] = colWidths;
-    } else {
+    } else if (!isComprehensiveData(financialData)) {
       // Basic Analysis Excel Export
       const excelData = Object.entries(financialData.financial_data).map(([figureId, figureData]) => {
         if ('years' in figureData) return null;
@@ -437,6 +499,8 @@ export default function OpenAIFinanceAnalyzer() {
         { wch: 15 }, // Period
       ];
       ws['!cols'] = colWidths;
+    } else {
+      return; // Should not happen
     }
 
     // Create workbook
@@ -448,6 +512,53 @@ export default function OpenAIFinanceAnalyzer() {
     const fileName = `${financialData.company_name || 'financial_data'}_openai${analysisTypeSuffix}.xlsx`;
 
     // Save file
+    XLSX.writeFile(wb, fileName);
+  };
+
+  const downloadComprehensiveJSON = () => {
+    if (!comprehensiveData) return;
+
+    const dataStr = JSON.stringify(comprehensiveData, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+
+    const exportFileDefaultName = `${comprehensiveData.company_name || 'financial_data'}_comprehensive_openai.json`;
+
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
+  const downloadComprehensiveExcel = () => {
+    if (!comprehensiveData) return;
+
+    const excelData = comprehensiveData.extracted_data.map(item => ({
+      Metric: item.metric_name,
+      Value: item.value ?? '',
+      Currency: item.currency || comprehensiveData.currency,
+      Period: item.period || '',
+      Category: item.category || '',
+      Context: item.context || ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+
+    // Set column widths
+    const colWidths = [
+      { wch: 25 }, // Metric
+      { wch: 15 }, // Value
+      { wch: 10 }, // Currency
+      { wch: 15 }, // Period
+      { wch: 15 }, // Category
+      { wch: 50 }  // Context
+    ];
+    ws['!cols'] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Comprehensive Data');
+
+    const fileName = `${comprehensiveData.company_name || 'financial_data'}_comprehensive_openai.xlsx`;
+
     XLSX.writeFile(wb, fileName);
   };
 
@@ -572,11 +683,39 @@ export default function OpenAIFinanceAnalyzer() {
       {/* Main Content */}
       <div className="lg:col-span-4">
         <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">OpenAI Cloud Financial Analysis</h2>
-            <p className="text-gray-600 mt-1">
-              Analyze documents using OpenAI&apos;s Responses API. Works independently of AnythingLLM workspaces.
-            </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">OpenAI Cloud Financial Analysis</h2>
+              <p className="text-gray-600 mt-1">
+                Analyze documents using OpenAI&apos;s Responses API. Works independently of AnythingLLM workspaces.
+              </p>
+            </div>
+            <button
+              onClick={analyzeWithOpenAI}
+              disabled={
+                loading ||
+                files.length === 0 ||
+                (analysisMode === 'excel' && (!uploadedFiguresName || analyzableFigures.length === 0))
+              }
+              className="flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <svg className="mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  Analyze Financial Data
+                </>
+              )}
+            </button>
           </div>
 
           <div className="border-t border-gray-200 pt-6">
@@ -702,43 +841,34 @@ export default function OpenAIFinanceAnalyzer() {
               </div>
             </div>
 
-
-          </div>
-
-          <div className="flex justify-between items-center pt-4">
-            <div className="text-sm text-gray-600">
-              {files.length > 0 ? (
-                <span>{files.length} document(s) ready for analysis</span>
-              ) : (
-                <span>Select documents from the sidebar to begin</span>
-              )}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h4 className="text-base font-semibold text-gray-900 mb-3">Comprehensive Data Extraction</h4>
+              <p className="text-sm text-gray-600 mb-4">Extract all numerical financial data found in documents, including revenue, costs, metrics, and KPIs across all time periods.</p>
+              
+              <button
+                onClick={analyzeComprehensiveWithOpenAI}
+                disabled={loading || files.length === 0}
+                className="flex items-center px-5 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Extracting...
+                  </>
+                ) : (
+                  <>
+                    <svg className="mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Extract All Financial Data
+                  </>
+                )}
+              </button>
             </div>
-            <button
-              onClick={analyzeWithOpenAI}
-              disabled={
-                loading ||
-                files.length === 0 ||
-                (analysisMode === 'excel' && (!uploadedFiguresName || analyzableFigures.length === 0))
-              }
-              className="flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium transition-colors"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <svg className="mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                  Analyze Financial Data
-                </>
-              )}
-            </button>
+
           </div>
         </div>
       </div>
@@ -767,7 +897,9 @@ export default function OpenAIFinanceAnalyzer() {
             <p className="text-lg text-gray-600 mt-2">
               {isTimeSeriesData(financialData) 
                 ? `Time Series Analysis • ${financialData.currency || 'Unknown Currency'}`
-                : `${financialData.report_period || 'Unknown Period'} • ${financialData.currency || 'Unknown Currency'}`
+                : !isComprehensiveData(financialData) 
+                  ? `${financialData.report_period || 'Unknown Period'} • ${financialData.currency || 'Unknown Currency'}`
+                  : `${financialData.currency || 'Unknown Currency'}`
               }
             </p>
           </div>
@@ -842,7 +974,7 @@ export default function OpenAIFinanceAnalyzer() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {Object.entries(financialData.financial_data).map(([figureId, figureData]) => {
+                    {!isComprehensiveData(financialData) && Object.entries(financialData.financial_data).map(([figureId, figureData]) => {
                       if ('years' in figureData) return null;
                       const configFigure = analyzableFigures.find(f => f.id === figureId);
                       const figureName = configFigure?.name || figureId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -883,6 +1015,100 @@ export default function OpenAIFinanceAnalyzer() {
             </button>
             <button
               onClick={downloadExcel}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
+            >
+              <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Download Excel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {comprehensiveData && (
+        <div className="lg:col-span-4 lg:col-start-2 space-y-6">
+          {/* Company Header */}
+          <div className="text-center">
+            <h2 className="text-3xl font-bold text-gray-900">{comprehensiveData.company_name || 'Unknown Company'}</h2>
+            <p className="text-lg text-gray-600 mt-2">
+              Comprehensive Financial Data Analysis (OpenAI) • {comprehensiveData.currency || 'Unknown Currency'}
+            </p>
+          </div>
+
+          {/* Comprehensive Results Table */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Comprehensive Financial Data - All Extracted Values
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              All numerical financial data extracted from documents ({comprehensiveData.extracted_data.length} items found)
+            </p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Metric
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Value
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Currency
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Period
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Category
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Context
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {comprehensiveData.extracted_data.map((item, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {item.metric_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatCurrency(item.value, item.currency || comprehensiveData.currency)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.currency || comprehensiveData.currency}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.period || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {item.category || 'General'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 max-w-md">
+                        {item.context || 'No additional context'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Download Buttons for Comprehensive Data */}
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={downloadComprehensiveJSON}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+            >
+              <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Download JSON
+            </button>
+            <button
+              onClick={downloadComprehensiveExcel}
               className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
             >
               <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
