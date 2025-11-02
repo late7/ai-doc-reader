@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { Buffer } from 'buffer';
-import { generateFinancePrompt, FigureDefinition } from '@/lib/financePromptGenerator';
+import { generateFinancePrompt, generateTimeSeriesFinancePrompt, FigureDefinition } from '@/lib/financePromptGenerator';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     const files: File[] = [];
 
     const analysisMode = formData.get('analysisMode');
+    const analysisType = formData.get('analysisType');
     let overrideFigures: FigureDefinition[] | undefined;
 
     const figuresField = formData.get('figures');
@@ -52,19 +53,12 @@ export async function POST(request: Request) {
 
     if (typeof analysisMode === 'string') {
       const figureInfo = overrideFigures ? ` with ${overrideFigures.length} custom figures` : '';
-      logger.debug(`OpenAI analysis mode requested: ${analysisMode}${figureInfo}`);
+      const typeInfo = analysisType === 'timeseries' ? ' (time series)' : ' (basic)';
+      logger.debug(`OpenAI analysis mode requested: ${analysisMode}${typeInfo}${figureInfo}`);
     }
 
     // Extract all files from the form data
-    const allowedTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-      'application/vnd.ms-excel', // .xls
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-      'application/msword', // .doc
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-      'application/vnd.ms-powerpoint' // .ppt
-    ];
+    const allowedTypes = ['application/pdf'];
 
     for (const value of Array.from(formData.values())) {
       if (value instanceof File && allowedTypes.includes(value.type)) {
@@ -74,7 +68,7 @@ export async function POST(request: Request) {
 
     if (files.length === 0) {
       return NextResponse.json(
-        { error: 'No supported files provided. Please upload PDF, Excel (.xlsx, .xls), Word (.docx, .doc), or PowerPoint (.pptx, .ppt) files.' },
+        { error: 'No supported files provided. Please upload PDF files only.' },
         { status: 400 }
       );
     }
@@ -106,9 +100,14 @@ export async function POST(request: Request) {
       throw new Error('Unable to process uploaded files for analysis');
     }
 
-  const developerPrompt = generateFinancePrompt('the company', true, overrideFigures);
+    // Use the appropriate prompt generator based on analysis type
+    const isTimeSeries = analysisType === 'timeseries';
+    const developerPrompt = isTimeSeries
+      ? generateTimeSeriesFinancePrompt('the company', true, overrideFigures)
+      : generateFinancePrompt('the company', true, overrideFigures);
 
     logger.debug('Calling OpenAI Responses API for financial extraction');
+    logger.debug(`Analysis Type: ${isTimeSeries ? 'Time Series' : 'Basic'}`);
     logger.debug('Developer Prompt:', developerPrompt);
     
     logger.debug(`Using model: ${process.env.OPENAI_MODEL || 'gpt-5-mini'}`);
@@ -186,6 +185,7 @@ export async function POST(request: Request) {
       parsedData,
       filesProcessed: encodedFiles.length,
       responseId: response.id,
+      analysisType: isTimeSeries ? 'timeseries' : 'basic'
     });
 
   } catch (error) {

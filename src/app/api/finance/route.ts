@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
 import { anythingLLM } from '@/lib/anythingllm';
-import { FigureDefinition, generateFinancePrompt } from '@/lib/financePromptGenerator';
+import { FigureDefinition, generateFinancePrompt, generateTimeSeriesFinancePrompt } from '@/lib/financePromptGenerator';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { workspaceSlug, companyName, figures, analysisMode } = body;
+    const { workspaceSlug, companyName, figures, analysisMode, analysisType } = body;
     logger.debug('Finance API called:', {
       workspaceSlug,
       companyName,
       analysisMode,
+      analysisType,
       customFigureCount: Array.isArray(figures) ? figures.length : 0
     });
 
@@ -51,10 +52,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // Build the finance analysis prompt
-    const prompt = generateFinancePrompt(companyName, false, overrideFigures);
+    // Build the finance analysis prompt based on analysis type
+    const isTimeSeries = analysisType === 'timeseries';
+    const prompt = isTimeSeries
+      ? generateTimeSeriesFinancePrompt(companyName, false, overrideFigures)
+      : generateFinancePrompt(companyName, false, overrideFigures);
 
-    logger.debug('Sending finance prompt to AnythingLLM:', { prompt });
+    logger.debug('Sending finance prompt to AnythingLLM:', { prompt, isTimeSeries });
     const result = await anythingLLM.sendMessage(workspaceSlug, prompt);
     logger.debug('AnythingLLM finance result received:', result);
 
@@ -83,7 +87,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ...result,
-      parsedData
+      parsedData,
+      analysisType: isTimeSeries ? 'timeseries' : 'basic'
     });
   } catch (error) {
     logger.error('Error in finance analysis:', error);

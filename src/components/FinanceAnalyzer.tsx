@@ -12,7 +12,7 @@ interface AnalyzableFigure {
   order?: number;
 }
 
-interface FinancialData {
+interface BasicFinancialData {
   company_name: string;
   report_period: string;
   currency: string;
@@ -21,6 +21,26 @@ interface FinancialData {
     currency: string;
     period: string;
   }>;
+}
+
+interface TimeSeriesFinancialData {
+  company_name: string;
+  currency: string;
+  analysis_type: 'timeseries';
+  financial_data: Record<string, {
+    metric_name: string;
+    years: Record<string, {
+      value: number | null;
+      currency: string;
+      note: string;
+    }>;
+  }>;
+}
+
+type FinancialData = BasicFinancialData | TimeSeriesFinancialData;
+
+function isTimeSeriesData(data: FinancialData): data is TimeSeriesFinancialData {
+  return 'analysis_type' in data && data.analysis_type === 'timeseries';
 }
 
 interface FinanceAnalyzerProps {
@@ -35,6 +55,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
   const [analyzableFigures, setAnalyzableFigures] = useState<AnalyzableFigure[]>([]);
   const [defaultFigures, setDefaultFigures] = useState<AnalyzableFigure[]>([]);
   const [analysisMode, setAnalysisMode] = useState<'config' | 'excel'>('config');
+  const [analysisType, setAnalysisType] = useState<'basic' | 'timeseries'>('basic');
   const [uploadedFiguresName, setUploadedFiguresName] = useState<string | null>(null);
   const [excelError, setExcelError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -172,15 +193,47 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
 
   const downloadTemplate = () => {
     const template = [
-      {
-        Name: 'Revenue',
-        Instructions: 'Total revenue, turnover or net sales. Convert any abbreviated figures (M, K, etc.) to whole numbers and specify the currency.'
-      },
-      {
-        Name: 'Funding Raised',
-        Instructions: 'Cumulative equity funding raised to date. Provide the most recent total in absolute numbers and list the period covered.'
-      }
-    ];
+  {
+    "Name": "Revenue",
+    "Instructions": "Total revenue, turnover or net sales. Convert any abbreviated figures (M, K, etc.) to whole numbers and specify the currency."
+  },
+  {
+    "Name": "Funding Raised",
+    "Instructions": "Cumulative equity funding raised to date. Provide the most recent total in absolute numbers and list the period covered."
+  },
+  {
+    "Name": "Burn Rate",
+    "Instructions": "Monthly cash consumption rate. Calculate as the average monthly decrease in cash balance, expressed as a positive number with currency."
+  },
+  {
+    "Name": "Runway",
+    "Instructions": "Number of months until cash depletion at current burn rate. Calculate as current cash divided by monthly burn rate, rounded to one decimal place."
+  },
+  {
+    "Name": "Cash Balance",
+    "Instructions": "Total cash and cash equivalents available. Include both restricted and unrestricted cash, specify currency and reporting date."
+  },
+  {
+    "Name": "Gross Margin",
+    "Instructions": "Gross profit as a percentage of revenue. Calculate as (Revenue - Cost of Goods Sold) / Revenue × 100, expressed as a percentage."
+  },
+  {
+    "Name": "Operating Expenses",
+    "Instructions": "Total operating costs including R&D, sales & marketing, and general & administrative expenses. Exclude cost of goods sold, specify period and currency."
+  },
+  {
+    "Name": "Net Loss",
+    "Instructions": "Bottom line net income (typically negative for startups). Report as a negative number if loss, positive if profit, with currency and period."
+  },
+  {
+    "Name": "Customer Acquisition Cost (CAC)",
+    "Instructions": "Total sales and marketing expenses divided by number of new customers acquired in the period. Specify currency and time period."
+  },
+  {
+    "Name": "Monthly Recurring Revenue (MRR)",
+    "Instructions": "Predictable monthly revenue from subscriptions or recurring contracts. Normalize annual contracts to monthly amounts, specify currency and reporting date."
+  }
+];
 
     const ws = XLSX.utils.json_to_sheet(template);
     ws['!cols'] = [
@@ -206,7 +259,8 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
       const payload: Record<string, unknown> = {
         workspaceSlug,
         companyName: workspaceName,
-        analysisMode
+        analysisMode,
+        analysisType
       };
 
       if (analysisMode === 'excel') {
@@ -261,38 +315,79 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
   const downloadExcel = () => {
     if (!financialData) return;
 
-    // Prepare data for Excel - use absolute numbers and dynamic figures
-    const excelData = analyzableFigures.map(figure => {
-      const figureData = financialData.financial_data[figure.id];
-      return {
-        Metric: figure.name,
-        Value: figureData?.value ?? '',
-        Currency: figureData?.currency || financialData.currency,
-        Period: figureData?.period || '',
-        Guidance: figure.description
-      };
-    });
+    let ws: XLSX.WorkSheet;
+    
+    if (isTimeSeriesData(financialData)) {
+      // Time Series Excel Export
+      const years = Object.keys(Object.values(financialData.financial_data)[0]?.years || {});
+      
+      const excelData = analyzableFigures.map(figure => {
+        const figureData = financialData.financial_data[figure.id];
+        if (!figureData || !('years' in figureData)) return null;
+        
+        const row: Record<string, any> = {
+          Metric: figure.name,
+          Guidance: figure.description
+        };
+        
+        // Add each year as a column
+        years.forEach(year => {
+          const yearData = figureData.years[year];
+          row[year] = yearData?.value ?? '';
+          row[`${year}_Note`] = yearData?.note || '';
+        });
+        
+        return row;
+      }).filter(Boolean);
 
-    // Create worksheet
-    const ws = XLSX.utils.json_to_sheet(excelData);
+      ws = XLSX.utils.json_to_sheet(excelData);
 
-    // Set column widths
-    const colWidths = [
-      { wch: 15 }, // Metric
-      { wch: 15 }, // Value
-      { wch: 10 }, // Currency
-      { wch: 15 }, // Period
-      { wch: 50 } // Guidance
-    ];
-    ws['!cols'] = colWidths;
+      // Set column widths for time series
+      const colWidths = [
+        { wch: 20 }, // Metric
+        { wch: 50 }, // Guidance
+        ...years.flatMap(() => [
+          { wch: 15 }, // Year value
+          { wch: 20 }  // Year note
+        ])
+      ];
+      ws['!cols'] = colWidths;
+    } else {
+      // Basic Analysis Excel Export
+      const excelData = analyzableFigures.map(figure => {
+        const figureData = financialData.financial_data[figure.id];
+        if (!figureData || 'years' in figureData) return null;
+        
+        return {
+          Metric: figure.name,
+          Value: figureData.value ?? '',
+          Currency: figureData.currency || financialData.currency,
+          Period: figureData.period || '',
+          Guidance: figure.description
+        };
+      }).filter(Boolean);
+
+      ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths for basic analysis
+      const colWidths = [
+        { wch: 15 }, // Metric
+        { wch: 15 }, // Value
+        { wch: 10 }, // Currency
+        { wch: 15 }, // Period
+        { wch: 50 } // Guidance
+      ];
+      ws['!cols'] = colWidths;
+    }
 
     // Create workbook
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Financial Data');
 
     // Generate filename with company name
-  const safeWorkspace = (workspaceSlug || workspaceName || 'workspace').replace(/[^a-zA-Z0-9-_]+/g, '_');
-  const fileName = `${safeWorkspace}_financial_data.xlsx`;
+    const safeWorkspace = (workspaceSlug || workspaceName || 'workspace').replace(/[^a-zA-Z0-9-_]+/g, '_');
+    const analysisTypeSuffix = isTimeSeriesData(financialData) ? '_timeseries' : '';
+    const fileName = `${safeWorkspace}_financial_data${analysisTypeSuffix}.xlsx`;
 
     // Save file
     XLSX.writeFile(wb, fileName);
@@ -415,23 +510,68 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
           >
             Download Template Excel
           </button>
+      </div>
+        <div>
+          {uploadedFiguresName && analysisMode === 'excel' && (
+            <p className="mt-3 text-sm text-gray-600">
+              Using analyzable figures from <span className="font-medium text-gray-800">{uploadedFiguresName}</span>.
+            </p>
+          )}
+
+
+          {analysisMode === 'config' && (
+            <p className="mt-3 text-sm text-gray-600">Using analyzable figures defined in top of the page Header. </p>
+          )}
+
+          {excelError && (
+            <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {excelError}
+            </div>
+          )}
         </div>
 
-        {uploadedFiguresName && analysisMode === 'excel' && (
-          <p className="mt-3 text-sm text-gray-600">
-            Using analyzable figures from <span className="font-medium text-gray-800">{uploadedFiguresName}</span>.
-          </p>
-        )}
 
-        {analysisMode === 'config' && (
-          <p className="mt-3 text-sm text-gray-600">Using analyzable figures defined in top of the page Header. </p>
-        )}
 
-        {excelError && (
-          <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {excelError}
+
+      <div className="mt-6 pt-6 border-t border-gray-200">
+          <h4 className="text-base font-semibold text-gray-900 mb-3">Analysis Type</h4>
+          <p className="text-sm text-gray-600 mb-4">Choose between basic single-period analysis or time series analysis across multiple years.</p>
+          
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
+            <label className="inline-flex items-start space-x-2 text-sm text-gray-700">
+              <input
+                type="radio"
+                name="analysis-type"
+                value="basic"
+                checked={analysisType === 'basic'}
+                onChange={() => setAnalysisType('basic')}
+                className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
+              />
+              <div>
+                <span className="font-medium">Basic Analysis</span>
+                <p className="text-xs text-gray-500 mt-0.5">Extract most recent financial figures (single period)</p>
+              </div>
+            </label>
+            <label className="inline-flex items-start space-x-2 text-sm text-gray-700">
+              <input
+                type="radio"
+                name="analysis-type"
+                value="timeseries"
+                checked={analysisType === 'timeseries'}
+                onChange={() => setAnalysisType('timeseries')}
+                className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
+              />
+              <div>
+                <span className="font-medium">Time Series (8 Years)</span>
+                <p className="text-xs text-gray-500 mt-0.5">Extract 3 years historical + current + 4 years projected data</p>
+              </div>
+            </label>
           </div>
-        )}
+        </div>
+        
+
+
+
       </div>
 
 
@@ -455,45 +595,95 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Analysis Results - {financialData.company_name || 'Unknown Company'}</h3>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Metric
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Value
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Currency
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Period
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {analyzableFigures.map((figure) => {
-                    const figureData = financialData.financial_data[figure.id];
-                    return (
-                      <tr key={figure.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {figure.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatCurrency(figureData?.value, figureData?.currency || financialData.currency)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {figureData?.currency || financialData.currency}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {figureData?.period}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              {isTimeSeriesData(financialData) ? (
+                // Time Series Table
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                        Metric
+                      </th>
+                      {Object.keys(Object.values(financialData.financial_data)[0]?.years || {}).map((year) => (
+                        <th key={year} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          {year}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {analyzableFigures.map((figure) => {
+                      const figureData = financialData.financial_data[figure.id];
+                      if (!figureData || !('years' in figureData)) return null;
+                      
+                      return (
+                        <tr key={figure.id}>
+                          <td className="px-4 py-4 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
+                            {figure.name}
+                          </td>
+                          {Object.entries(figureData.years).map(([year, yearData]) => (
+                            <td key={year} className="px-4 py-4 text-sm text-gray-900">
+                              <div className="flex flex-col">
+                                <span className={yearData.value === null ? 'text-gray-400' : ''}>
+                                  {yearData.value !== null 
+                                    ? formatCurrency(yearData.value, yearData.currency || financialData.currency)
+                                    : 'N/A'
+                                  }
+                                </span>
+                                {yearData.note && yearData.note !== 'Not found in documents' && (
+                                  <span className="text-xs text-gray-500 mt-1">{yearData.note}</span>
+                                )}
+                              </div>
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                // Basic Analysis Table
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Metric
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Value
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Currency
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Period
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {analyzableFigures.map((figure) => {
+                      const figureData = financialData.financial_data[figure.id];
+                      if (!figureData || 'years' in figureData) return null;
+                      
+                      return (
+                        <tr key={figure.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {figure.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {formatCurrency(figureData.value, figureData.currency || financialData.currency)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {figureData.currency || financialData.currency}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {figureData.period}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
 

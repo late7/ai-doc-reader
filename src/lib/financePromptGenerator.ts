@@ -126,3 +126,102 @@ CRITICAL: All value fields must be absolute integers (numbers without quotes). U
 
   return prompt.replace('{company_name}', companyName);
 }
+
+export function generateTimeSeriesFinancePrompt(
+  companyName: string,
+  isOpenAI: boolean = false,
+  overrideFigures?: FigureDefinition[]
+): string {
+  const figures = (overrideFigures && overrideFigures.length > 0)
+    ? overrideFigures
+    : loadAnalyzableFigures();
+
+  if (figures.length === 0) {
+    throw new Error('No analyzable figures configured');
+  }
+
+  // Build the figures list for the prompt
+  const figuresList = figures.map(figure => `- ${figure.name} → "${figure.id}" (${figure.description})`).join('\n');
+
+  // Build the JSON structure dynamically for time series (8 years: 3 past + current + 4 future)
+  const currentYear = new Date().getFullYear();
+  const years = [
+    `${currentYear - 3}`,
+    `${currentYear - 2}`,
+    `${currentYear - 1}`,
+    `${currentYear}`,
+    `${currentYear + 1}`,
+    `${currentYear + 2}`,
+    `${currentYear + 3}`,
+    `${currentYear + 4}`
+  ];
+
+  const timeSeriesStructure = {
+    company_name: "Company Name",
+    currency: "EUR or USD etc",
+    analysis_type: "timeseries",
+    financial_data: figures.reduce((acc, figure) => {
+      acc[figure.id] = {
+        metric_name: figure.name,
+        years: years.reduce((yearAcc, year) => {
+          yearAcc[year] = {
+            value: null as number | null,
+            currency: "currency code",
+            note: "Historical/Projected/Not found in documents"
+          };
+          return yearAcc;
+        }, {} as any)
+      };
+      return acc;
+    }, {} as any)
+  };
+
+  const basePrompt = isOpenAI
+    ? "You are a financial data extraction expert specialized in time series analysis. Your task is to analyze PDF documents and extract historical and projected financial figures."
+    : "Please analyze all the uploaded PDF documents for {company_name} and extract time series financial data spanning 8 years.";
+
+  const prompt = `${basePrompt}
+
+Extract the following financial data from company reports for an 8-year period (3 years historical + current year + 4 years projected) and return it as JSON:
+${figuresList}
+
+TIME SERIES ANALYSIS REQUIREMENTS:
+1. Extract data for years ${years.join(', ')}
+2. For each metric, find values for as many years as are mentioned in the documents
+3. Clearly distinguish between:
+   - Historical data (actual results from past years)
+   - Current year data
+   - Projected/forecasted data (future years)
+4. ONLY extract data that is EXPLICITLY mentioned in the documents
+5. DO NOT hallucinate, estimate, or calculate values not present in the documents
+6. If a year's data is not found in any document, set value to null
+7. Add a note field indicating: "Historical", "Current", "Projected", or "Not found in documents"
+
+CRITICAL VALUE CONVERSION GUIDELINES:
+1. Convert ALL values to absolute integers (no decimals, no abbreviations, no strings)
+2. Handle abbreviations and scaling meticulously:
+   - M, Mill, million = multiply by 1,000,000 (e.g., "5.3M" = 5300000)
+   - K, k, thousand, '000 = multiply by 1,000 (e.g., "150k" = 150000)
+   - B, billion = multiply by 1,000,000,000 (e.g., "2.5B" = 2500000000)
+3. Detect document scaling statements:
+   - "All figures in thousands" or "(000s)" = multiply ALL values by 1,000
+   - "All figures in millions" = multiply ALL values by 1,000,000
+   - "Values shown in EUR thousand" = multiply by 1,000
+4. Look for historical tables, trend analyses, and forecast sections
+5. Look for consolidated figures rather than segment-specific data
+6. If exact figures aren't found for a specific year, set value to null (not string)
+
+CRITICAL DATA INTEGRITY RULES:
+- NEVER fabricate or estimate data
+- NEVER extrapolate trends to fill missing years
+- NEVER calculate values based on growth rates unless explicitly shown
+- ONLY include values that are directly stated in the documents
+- Use null for any year where data is not explicitly provided
+
+Return ONLY valid JSON in this exact format:
+${JSON.stringify(timeSeriesStructure, null, 2)}
+
+CRITICAL: All value fields must be absolute integers (numbers without quotes) or null if not found. The note field must accurately reflect whether the data is historical, current, projected, or not found.`;
+
+  return prompt.replace('{company_name}', companyName);
+}
