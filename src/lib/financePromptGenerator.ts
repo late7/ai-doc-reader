@@ -7,8 +7,10 @@ export interface AnalyzableFigure {
   name: string;
   description: string;
   enabled: boolean;
-  order: number;
+  order?: number;
 }
+
+export type FigureDefinition = Pick<AnalyzableFigure, 'id' | 'name' | 'description'>;
 
 export interface AnalyzableFiguresConfig {
   figures: AnalyzableFigure[];
@@ -47,15 +49,23 @@ export function loadAnalyzableFigures(): AnalyzableFigure[] {
 
     const configData = fs.readFileSync(CONFIG_PATH, 'utf-8');
     const config: AnalyzableFiguresConfig = JSON.parse(configData);
-    return config.figures.filter(figure => figure.enabled).sort((a, b) => a.order - b.order);
+    return config.figures
+      .filter(figure => figure.enabled)
+      .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
   } catch (error) {
     logger.error('Error loading analyzable figures:', error);
     return [];
   }
 }
 
-export function generateFinancePrompt(companyName: string, isOpenAI: boolean = false): string {
-  const figures = loadAnalyzableFigures();
+export function generateFinancePrompt(
+  companyName: string,
+  isOpenAI: boolean = false,
+  overrideFigures?: FigureDefinition[]
+): string {
+  const figures = (overrideFigures && overrideFigures.length > 0)
+    ? overrideFigures
+    : loadAnalyzableFigures();
 
   if (figures.length === 0) {
     throw new Error('No analyzable figures configured');

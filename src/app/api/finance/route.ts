@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
 import { anythingLLM } from '@/lib/anythingllm';
-import { generateFinancePrompt } from '@/lib/financePromptGenerator';
+import { FigureDefinition, generateFinancePrompt } from '@/lib/financePromptGenerator';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
   try {
-    const { workspaceSlug, companyName } = await request.json();
-    logger.debug('Finance API called:', { workspaceSlug, companyName });
+    const body = await request.json();
+    const { workspaceSlug, companyName, figures, analysisMode } = body;
+    logger.debug('Finance API called:', {
+      workspaceSlug,
+      companyName,
+      analysisMode,
+      customFigureCount: Array.isArray(figures) ? figures.length : 0
+    });
 
     if (!workspaceSlug) {
       return NextResponse.json(
@@ -22,8 +28,31 @@ export async function POST(request: Request) {
       );
     }
 
+    let overrideFigures: FigureDefinition[] | undefined;
+    if (Array.isArray(figures)) {
+      overrideFigures = figures
+        .map((figure: any) => {
+          const id = typeof figure.id === 'string' ? figure.id.trim() : '';
+          const name = typeof figure.name === 'string' ? figure.name.trim() : '';
+          const description = typeof figure.description === 'string' ? figure.description.trim() : '';
+          if (!id || !name) {
+            return null;
+          }
+          return {
+            id,
+            name,
+            description: description || 'No guidance provided.'
+          } satisfies FigureDefinition;
+        })
+        .filter((figure): figure is FigureDefinition => figure !== null);
+
+      if (overrideFigures.length === 0) {
+        overrideFigures = undefined;
+      }
+    }
+
     // Build the finance analysis prompt
-    const prompt = generateFinancePrompt(companyName, false);
+    const prompt = generateFinancePrompt(companyName, false, overrideFigures);
 
     logger.debug('Sending finance prompt to AnythingLLM:', { prompt });
     const result = await anythingLLM.sendMessage(workspaceSlug, prompt);

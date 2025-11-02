@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { logger } from '@/lib/logger';
 
 // Import constants from anythingllm.ts
@@ -27,6 +28,7 @@ interface WorkspaceSelectorProps {
 }
 
 export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace, confirmationMessage }: WorkspaceSelectorProps) {
+  const router = useRouter();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +55,11 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
       });
       
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          logger.warn('Workspace fetch unauthorized. Redirecting to login.');
+          router.replace('/login');
+          return;
+        }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to fetch workspaces: ${response.status} ${response.statusText}`);
       }

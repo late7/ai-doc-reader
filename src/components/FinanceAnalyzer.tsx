@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import type { ChangeEvent } from 'react';
 import * as XLSX from 'xlsx';
 
 interface AnalyzableFigure {
   id: string;
   name: string;
   description: string;
-  enabled: boolean;
+  enabled?: boolean;
+  order?: number;
 }
 
 interface FinancialData {
@@ -31,38 +33,196 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analyzableFigures, setAnalyzableFigures] = useState<AnalyzableFigure[]>([]);
+  const [defaultFigures, setDefaultFigures] = useState<AnalyzableFigure[]>([]);
+  const [analysisMode, setAnalysisMode] = useState<'config' | 'excel'>('config');
+  const [uploadedFiguresName, setUploadedFiguresName] = useState<string | null>(null);
+  const [excelError, setExcelError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load analyzable figures on component mount
   useEffect(() => {
     loadAnalyzableFigures();
   }, []);
 
+  useEffect(() => {
+    if (analysisMode === 'config') {
+      setAnalyzableFigures(defaultFigures);
+      setUploadedFiguresName(null);
+      setExcelError(null);
+    }
+  }, [analysisMode, defaultFigures]);
+
   const loadAnalyzableFigures = async () => {
     try {
       const response = await fetch('/api/analyzable-figures');
       if (response.ok) {
         const config = await response.json();
-        setAnalyzableFigures(config.figures.filter((fig: AnalyzableFigure) => fig.enabled));
+        const enabledFigures = (config.figures || [])
+          .filter((fig: AnalyzableFigure) => fig.enabled !== false)
+          .sort((a: AnalyzableFigure, b: AnalyzableFigure) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
+        setDefaultFigures(enabledFigures);
+        if (analysisMode === 'config') {
+          setAnalyzableFigures(enabledFigures);
+        }
       }
     } catch (error) {
       console.error('Error loading analyzable figures:', error);
     }
   };
 
+  const handleAnalysisModeChange = (mode: 'config' | 'excel', options?: { preserveFigures?: boolean }) => {
+    setAnalysisMode(mode);
+    setFinancialData(null);
+    if (mode === 'config') {
+      setUploadedFiguresName(null);
+      setExcelError(null);
+    } else if (!options?.preserveFigures) {
+      setAnalyzableFigures([]);
+    }
+  };
+
+  const slugifyFigureId = (value: string, fallbackIndex: number) => {
+    const sanitized = value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_|_$/g, '');
+    return sanitized || `figure_${fallbackIndex + 1}`;
+  };
+
+  const handleExcelUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+  setExcelError(null);
+  setError(null);
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+
+      if (!workbook.SheetNames.length) {
+        throw new Error('The uploaded workbook does not contain any sheets.');
+      }
+
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!sheet) {
+        throw new Error('Unable to read the first sheet of the workbook.');
+      }
+
+      const rows = XLSX.utils.sheet_to_json<Record<string, string | number>>(sheet, { defval: '' });
+      const seenIds = new Set<string>();
+
+      const parsedFigures = rows
+        .map((row, index) => {
+          const normalizedRow = Object.keys(row).reduce<Record<string, string | number>>((acc, key) => {
+            acc[key.toLowerCase()] = row[key];
+            return acc;
+          }, {});
+
+          const nameValue = normalizedRow['name'] ?? normalizedRow['metric'] ?? '';
+          const instructionsValue = normalizedRow['instructions'] ?? normalizedRow['guidance'] ?? normalizedRow['description'] ?? '';
+          const name = String(nameValue).trim();
+          const instructions = String(instructionsValue).trim();
+
+          if (!name) {
+            return null;
+          }
+
+          let id = slugifyFigureId(name, index);
+          let counter = 1;
+          while (seenIds.has(id)) {
+            id = `${slugifyFigureId(name, index)}_${counter}`;
+            counter += 1;
+          }
+          seenIds.add(id);
+
+          return {
+            id,
+            name,
+            description: instructions || 'No guidance provided.',
+            enabled: true
+          } as AnalyzableFigure;
+        })
+        .filter((figure): figure is AnalyzableFigure => figure !== null);
+
+      if (parsedFigures.length === 0) {
+        throw new Error('No valid rows found. Please provide at least one row with "Name" and "Instructions" columns.');
+      }
+
+  setAnalyzableFigures(parsedFigures);
+      setFinancialData(null);
+      setUploadedFiguresName(file.name);
+  handleAnalysisModeChange('excel', { preserveFigures: true });
+    } catch (uploadError) {
+      const message = uploadError instanceof Error ? uploadError.message : 'Failed to read the Excel file.';
+      setExcelError(message);
+    } finally {
+      event.target.value = '';
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const openExcelPicker = () => {
+    fileInputRef.current?.click();
+  };
+
+  const downloadTemplate = () => {
+    const template = [
+      {
+        Name: 'Revenue',
+        Instructions: 'Total revenue, turnover or net sales. Convert any abbreviated figures (M, K, etc.) to whole numbers and specify the currency.'
+      },
+      {
+        Name: 'Funding Raised',
+        Instructions: 'Cumulative equity funding raised to date. Provide the most recent total in absolute numbers and list the period covered.'
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(template);
+    ws['!cols'] = [
+      { wch: 30 },
+      { wch: 70 }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Analyzable Figures');
+    XLSX.writeFile(wb, 'financial-figures-template.xlsx');
+  };
+
   const analyzeFinance = async () => {
+    if (analysisMode === 'excel' && (!uploadedFiguresName || analyzableFigures.length === 0)) {
+      setError('Upload an Excel file with at least one analyzable figure before running the analysis.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
+      const payload: Record<string, unknown> = {
+        workspaceSlug,
+        companyName: workspaceName,
+        analysisMode
+      };
+
+      if (analysisMode === 'excel') {
+        payload.figures = analyzableFigures.map(({ id, name, description }) => ({
+          id,
+          name,
+          description: description || 'No guidance provided.'
+        }));
+      }
+
       const response = await fetch('/api/finance', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          workspaceSlug,
-          companyName: workspaceName,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -89,7 +249,8 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
     const dataStr = JSON.stringify(financialData, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
 
-    const exportFileDefaultName = `${workspaceName}_financial_data.json`;
+    const safeWorkspace = (workspaceSlug || workspaceName || 'workspace').replace(/[^a-zA-Z0-9-_]+/g, '_');
+    const exportFileDefaultName = `${safeWorkspace}_financial_data.json`;
 
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
@@ -105,9 +266,10 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
       const figureData = financialData.financial_data[figure.id];
       return {
         Metric: figure.name,
-        Value: figureData?.value || 0,
+        Value: figureData?.value ?? '',
         Currency: figureData?.currency || financialData.currency,
-        Period: figureData?.period || ''
+        Period: figureData?.period || '',
+        Guidance: figure.description
       };
     });
 
@@ -120,6 +282,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
       { wch: 15 }, // Value
       { wch: 10 }, // Currency
       { wch: 15 }, // Period
+      { wch: 50 } // Guidance
     ];
     ws['!cols'] = colWidths;
 
@@ -128,7 +291,8 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
     XLSX.utils.book_append_sheet(wb, ws, 'Financial Data');
 
     // Generate filename with company name
-    const fileName = `${workspaceName}_financial_data.xlsx`;
+  const safeWorkspace = (workspaceSlug || workspaceName || 'workspace').replace(/[^a-zA-Z0-9-_]+/g, '_');
+  const fileName = `${safeWorkspace}_financial_data.xlsx`;
 
     // Save file
     XLSX.writeFile(wb, fileName);
@@ -149,6 +313,8 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
     }
   };
 
+  const isAnalyzeDisabled = loading || (analysisMode === 'excel' && (!uploadedFiguresName || analyzableFigures.length === 0));
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -159,7 +325,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
         </div>
         <button
           onClick={analyzeFinance}
-          disabled={loading}
+          disabled={isAnalyzeDisabled}
           className="flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium transition-colors"
         >
           {loading ? (
@@ -180,6 +346,94 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
           )}
         </button>
       </div>
+
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h3 className="text-lg font-semibold text-gray-900">Analysis Input Options</h3>
+        <p className="mt-1 text-sm text-gray-600">Choose whether to use the configured analyzable figures or provide a custom Excel sheet with guidance.</p>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+          <label className="inline-flex items-center space-x-2 text-sm text-gray-700">
+            <input
+              type="radio"
+              name="analysis-mode"
+              value="config"
+              checked={analysisMode === 'config'}
+              onChange={() => handleAnalysisModeChange('config')}
+              className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>Use configured analyzable figures</span>
+          </label>
+          <label className="inline-flex items-center space-x-2 text-sm text-gray-700">
+            <input
+              type="radio"
+              name="analysis-mode"
+              value="excel"
+              checked={analysisMode === 'excel'}
+              onChange={() => handleAnalysisModeChange('excel')}
+              className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>Use uploaded Excel guidance</span>
+          </label>
+        </div>
+
+        <div
+          className={`mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-6 transition-opacity ${
+            analysisMode === 'excel' ? 'opacity-100' : 'opacity-50'
+          }`}
+          aria-disabled={analysisMode !== 'excel'}
+        >
+          <div className="flex-1">
+            <span className="block text-sm font-medium text-gray-700 mb-1">Upload Excel (.xlsx) with columns "Name" and "Instructions"</span>
+            <div className="flex items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleExcelUpload}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={openExcelPicker}
+                className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
+              >
+                Choose Excel File
+              </button>
+              <span className="text-sm text-gray-600">
+                {uploadedFiguresName ? (
+                  <span className="font-medium text-gray-800">{uploadedFiguresName}</span>
+                ) : (
+                  'No file selected'
+                )}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={downloadTemplate}
+            className="inline-flex items-center self-start rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
+          >
+            Download Template Excel
+          </button>
+        </div>
+
+        {uploadedFiguresName && analysisMode === 'excel' && (
+          <p className="mt-3 text-sm text-gray-600">
+            Using analyzable figures from <span className="font-medium text-gray-800">{uploadedFiguresName}</span>.
+          </p>
+        )}
+
+        {analysisMode === 'config' && (
+          <p className="mt-3 text-sm text-gray-600">Using analyzable figures defined in top of the page Header. </p>
+        )}
+
+        {excelError && (
+          <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {excelError}
+          </div>
+        )}
+      </div>
+
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
