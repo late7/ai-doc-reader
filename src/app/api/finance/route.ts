@@ -1,12 +1,19 @@
 import { NextResponse } from 'next/server';
 import { anythingLLM } from '@/lib/anythingllm';
-import { generateFinancePrompt } from '@/lib/financePromptGenerator';
+import { FigureDefinition, generateFinancePrompt, generateTimeSeriesFinancePrompt, generateComprehensiveFinancePrompt } from '@/lib/financePromptGenerator';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
   try {
-    const { workspaceSlug, companyName } = await request.json();
-    logger.debug('Finance API called:', { workspaceSlug, companyName });
+    const body = await request.json();
+    const { workspaceSlug, companyName, figures, analysisMode, analysisType } = body;
+    logger.debug('Finance API called:', {
+      workspaceSlug,
+      companyName,
+      analysisMode,
+      analysisType,
+      customFigureCount: Array.isArray(figures) ? figures.length : 0
+    });
 
     if (!workspaceSlug) {
       return NextResponse.json(
@@ -22,10 +29,43 @@ export async function POST(request: Request) {
       );
     }
 
-    // Build the finance analysis prompt
-    const prompt = generateFinancePrompt(companyName, false);
+    let overrideFigures: FigureDefinition[] | undefined;
+    if (Array.isArray(figures)) {
+      overrideFigures = figures
+        .map((figure: any) => {
+          const id = typeof figure.id === 'string' ? figure.id.trim() : '';
+          const name = typeof figure.name === 'string' ? figure.name.trim() : '';
+          const description = typeof figure.description === 'string' ? figure.description.trim() : '';
+          if (!id || !name) {
+            return null;
+          }
+          return {
+            id,
+            name,
+            description: description || 'No guidance provided.'
+          } satisfies FigureDefinition;
+        })
+        .filter((figure): figure is FigureDefinition => figure !== null);
 
-    logger.debug('Sending finance prompt to AnythingLLM:', { prompt });
+      if (overrideFigures.length === 0) {
+        overrideFigures = undefined;
+      }
+    }
+
+    // Build the finance analysis prompt based on analysis type
+    const isTimeSeries = analysisType === 'timeseries';
+    const isComprehensive = analysisType === 'comprehensive';
+    
+    let prompt: string;
+    if (isComprehensive) {
+      prompt = generateComprehensiveFinancePrompt(companyName, false);
+    } else if (isTimeSeries) {
+      prompt = generateTimeSeriesFinancePrompt(companyName, false, overrideFigures);
+    } else {
+      prompt = generateFinancePrompt(companyName, false, overrideFigures);
+    }
+
+    logger.debug('Sending finance prompt to AnythingLLM:', { prompt, analysisType });
     const result = await anythingLLM.sendMessage(workspaceSlug, prompt);
     logger.debug('AnythingLLM finance result received:', result);
 
@@ -54,7 +94,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ...result,
-      parsedData
+      parsedData,
+      analysisType: isComprehensive ? 'comprehensive' : (isTimeSeries ? 'timeseries' : 'basic')
     });
   } catch (error) {
     logger.error('Error in finance analysis:', error);

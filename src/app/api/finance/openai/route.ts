@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { Buffer } from 'buffer';
-import { generateFinancePrompt } from '@/lib/financePromptGenerator';
+import { generateFinancePrompt, generateTimeSeriesFinancePrompt, generateComprehensiveFinancePrompt, FigureDefinition } from '@/lib/financePromptGenerator';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
@@ -14,14 +14,51 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const files: File[] = [];
 
+    const analysisMode = formData.get('analysisMode');
+    const analysisType = formData.get('analysisType');
+    let overrideFigures: FigureDefinition[] | undefined;
+
+    const figuresField = formData.get('figures');
+    if (typeof figuresField === 'string' && figuresField.trim()) {
+      try {
+        const parsed = JSON.parse(figuresField) as FigureDefinition[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const sanitizedFigures = parsed
+            .map((figure, index) => {
+              const id = typeof figure.id === 'string' ? figure.id.trim() : '';
+              const name = typeof figure.name === 'string' ? figure.name.trim() : '';
+              const description = typeof figure.description === 'string' ? figure.description.trim() : '';
+
+              if (!id || !name) {
+                logger.warn(`Skipping invalid custom figure at index ${index}`);
+                return null;
+              }
+
+              return {
+                id,
+                name,
+                description: description || 'No guidance provided.'
+              } satisfies FigureDefinition;
+            })
+            .filter((figure): figure is FigureDefinition => figure !== null);
+
+          if (sanitizedFigures.length > 0) {
+            overrideFigures = sanitizedFigures;
+          }
+        }
+      } catch (parseError) {
+        logger.warn('Failed to parse custom figures for OpenAI analysis:', parseError);
+      }
+    }
+
+    if (typeof analysisMode === 'string') {
+      const figureInfo = overrideFigures ? ` with ${overrideFigures.length} custom figures` : '';
+      const typeInfo = analysisType === 'timeseries' ? ' (time series)' : ' (basic)';
+      logger.debug(`OpenAI analysis mode requested: ${analysisMode}${typeInfo}${figureInfo}`);
+    }
+
     // Extract all files from the form data
-    const allowedTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-      'application/vnd.ms-excel', // .xls
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-      'application/msword' // .doc
-    ];
+    const allowedTypes = ['application/pdf'];
 
     for (const value of Array.from(formData.values())) {
       if (value instanceof File && allowedTypes.includes(value.type)) {
@@ -31,7 +68,7 @@ export async function POST(request: Request) {
 
     if (files.length === 0) {
       return NextResponse.json(
-        { error: 'No supported files provided. Please upload PDF, Excel (.xlsx, .xls), or Word (.docx, .doc) files.' },
+        { error: 'No supported files provided. Please upload PDF files only.' },
         { status: 400 }
       );
     }
@@ -63,9 +100,21 @@ export async function POST(request: Request) {
       throw new Error('Unable to process uploaded files for analysis');
     }
 
-    const developerPrompt = generateFinancePrompt('the company', true);
+    // Use the appropriate prompt generator based on analysis type
+    const isTimeSeries = analysisType === 'timeseries';
+    const isComprehensive = analysisType === 'comprehensive';
+    
+    let developerPrompt: string;
+    if (isComprehensive) {
+      developerPrompt = generateComprehensiveFinancePrompt('the company', true);
+    } else if (isTimeSeries) {
+      developerPrompt = generateTimeSeriesFinancePrompt('the company', true, overrideFigures);
+    } else {
+      developerPrompt = generateFinancePrompt('the company', true, overrideFigures);
+    }
 
     logger.debug('Calling OpenAI Responses API for financial extraction');
+    logger.debug(`Analysis Type: ${isComprehensive ? 'Comprehensive' : (isTimeSeries ? 'Time Series' : 'Basic')}`);
     logger.debug('Developer Prompt:', developerPrompt);
     
     logger.debug(`Using model: ${process.env.OPENAI_MODEL || 'gpt-5-mini'}`);
@@ -143,6 +192,7 @@ export async function POST(request: Request) {
       parsedData,
       filesProcessed: encodedFiles.length,
       responseId: response.id,
+      analysisType: isComprehensive ? 'comprehensive' : (isTimeSeries ? 'timeseries' : 'basic')
     });
 
   } catch (error) {
