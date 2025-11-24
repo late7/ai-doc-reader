@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { logger } from '@/lib/logger';
 
 // Import constants from anythingllm.ts
@@ -29,6 +29,9 @@ interface WorkspaceSelectorProps {
 
 export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace, confirmationMessage }: WorkspaceSelectorProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const lastProcessedParam = useRef<string | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +41,30 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
   useEffect(() => {
     fetchWorkspaces();
   }, []);
+
+  useEffect(() => {
+    const workspaceParam = searchParams.get('workspace');
+    
+    if (workspaces.length > 0) {
+      // Case 1: URL has workspace param -> Sync to app state
+      if (workspaceParam && workspaceParam !== lastProcessedParam.current) {
+        const found = workspaces.find(w => w.slug === workspaceParam || w.name === workspaceParam);
+        if (found) {
+          if (!selectedWorkspace || selectedWorkspace.id !== found.id) {
+            logger.info(`Switching workspace to ${found.name} from URL parameter`);
+            onWorkspaceSelect(found);
+          }
+          lastProcessedParam.current = workspaceParam;
+        }
+      }
+      // Case 2: App has selected workspace, but URL doesn't -> Sync to URL
+      else if (!workspaceParam && selectedWorkspace) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('workspace', selectedWorkspace.slug);
+        router.replace(`${pathname}?${params.toString()}`);
+      }
+    }
+  }, [workspaces, searchParams, onWorkspaceSelect, selectedWorkspace, pathname, router]);
 
   const fetchWorkspaces = async () => {
     try {
@@ -230,6 +257,11 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
               }
 
               onWorkspaceSelect(workspace);
+
+              // Update URL to reflect the selected workspace
+              const params = new URLSearchParams(searchParams.toString());
+              params.set('workspace', workspace.slug);
+              router.push(`${pathname}?${params.toString()}`);
             }}
             className="w-full p-2.5 bg-white border border-gray-400 text-gray-800 placeholder-gray-500 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import WorkspaceSelector from '@/components/WorkspaceSelector';
 import DocumentUploader, { DocumentUploaderRef } from '@/components/DocumentUploader';
@@ -138,11 +138,13 @@ export default function FinancePage() {
             {/* Sidebar */}
             <div className="lg:col-span-1">
               <div className="bg-white rounded-lg shadow-md p-4 space-y-4">
-                <WorkspaceSelector
-                  onWorkspaceSelect={handleWorkspaceSelect}
-                  selectedWorkspace={selectedWorkspace}
-                  confirmationMessage="Changing workspace will reset the Company Summary and all Analysis Questions and Financial Analysis. Continue?"
-                />
+                <Suspense fallback={<div className="h-10 w-full bg-gray-100 animate-pulse rounded-lg"></div>}>
+                  <WorkspaceSelector
+                    onWorkspaceSelect={handleWorkspaceSelect}
+                    selectedWorkspace={selectedWorkspace}
+                    confirmationMessage="Changing workspace will reset the Company Summary and all Analysis Questions and Financial Analysis. Continue?"
+                  />
+                </Suspense>
 
                 {selectedWorkspace && (
                   <DocumentUploader
