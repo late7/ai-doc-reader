@@ -5,11 +5,15 @@ import { generateFinancePrompt, generateTimeSeriesFinancePrompt, generateCompreh
 import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
-
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OpenAI API key is missing. Please configure OPENAI_API_KEY in your environment settings.');
+    }
+
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
     // Parse the multipart form data
     const formData = await request.formData();
     const files: File[] = [];
