@@ -1,0 +1,59 @@
+{
+  "sections": [
+    {
+      "id": "dd_exec_summary",
+      "title": "Executive Summary",
+      "prompt": "You are an expert venture capital due diligence analyst.\n\nWrite an EXECUTIVE SUMMARY for an investor due diligence memo for the company based ONLY on the provided RAG workspace content.\n\nRequired structure:\n## Executive Summary\nOverview of the company and what it does\nSummary of key opportunity points\nSummary of critical risks. List risks if ONLY remarkable risks are seen.\n\nRules:\n- Use ONLY facts from the documents.\n- Do not speculate or invent data.\n- Professional investor memo tone.\n- Markdown output without bulleted lists"
+    },
+    {
+      "id": "dd_company_overview",
+      "title": "Company Overview",
+      "prompt": "Create a COMPANY OVERVIEW section for a VC due diligence memo based ONLY on the RAG workspace.\n\nRequired Structure:\n## Company Overview\nCompany name and what it does\nSector or domain\nProblem it solves\nProduct / solution summary\nStage of company\nKey milestones mentioned\n\nRules:\n- Use ONLY information in the workspace.\n- Do not guess or infer beyond documents.\n- Markdown output without bulleted lists"
+    },
+    {
+      "id": "dd_market_analysis",
+      "title": "Market Analysis",
+      "prompt": "Create a MARKET ANALYSIS section for an investor due diligence memo using ONLY RAG workspace sources.\n\nRequired Structure:\n## Market Overview\nMarket the company operates in\nTarget users / customers\nIndications of demand if available\n\n## Competitive Position\nCompetitors mentioned (if any)\nStated differentiation (only if supported)\n\nRules:\n- DO NOT invent market sizes or trends.\n- If material contains almost no market info, explicitly state that this is a major DD gap.\n- Markdown output without bulleted lists"
+    },
+    {
+      "id": "dd_team",
+      "title": "Team & Management",
+      "prompt": "Create a TEAM & MANAGEMENT due diligence section using ONLY RAG workspace data.\n\nRequired Structure:\n## Team Summary\nIdentified founders and leaders\nRoles and relevant experience IF explicitly stated\n\n## Execution Readiness\nEstimate and describe Team's capability to deliver their customer promise\n\nRules:\n- No speculation.\n- Professional VC memo tone.\n- Markdown output without bulleted lists"
+    },
+    {
+      "id": "dd_product_tech",
+      "title": "Product & Technology",
+      "prompt": "Generate a PRODUCT & TECHNOLOGY section based ONLY on RAG workspace documents.\n\nRequired Structure:\n## Product Description\n- What product / solution is\n- Development status\n\n## Technology & IP\n- Technology approach\n- Patent or IP claims if documented\n- Evidence of defensibility if mentioned\n\n## Technical Risks / Constraints\n- Any documented technical limitations\n\nRules:\n- Use only documented information.\n- Zero hallucinations.\n- Markdown output without bulleted lists"
+    },
+    {
+      "id": "dd_business_model",
+      "title": "Business Model & Go-To-Market",
+      "prompt": "Create a BUSINESS MODEL & GO-TO-MARKET section using ONLY RAG workspace content.\n\nRequired Structure:\n## Business Model\n- How company intends to generate revenue\n- Current revenue state if mentioned\n\n## Go-To-Market Strategy\n- Sales channels or approach (only if documented)\n- Any evidence of commercial engagement\n\nRules:\n- No guessing.\n- Investor memo tone.\n- Markdown output without bulleted lists"
+    },
+    {
+      "id": "dd_traction",
+      "title": "Traction & Performance",
+      "prompt": "Create a TRACTION & PERFORMANCE section for a due diligence memo using ONLY RAG data.\n\nRequired Structure:\n## Evidence of Traction\n- Customers\n- Pilots\n- Partnerships\n- Revenue indicators\nOnly if explicitly documented.\n\n## Performance Indicators\n- Any measurable progress or milestones\n\nRules:\n- No guessing.\n- Investor memo tone.\n- Markdown output without bulleted lists"
+    },
+    {
+      "id": "dd_financials",
+      "title": "Financials",
+      "prompt": "Produce a FINANCIALS section for VC due diligence using ONLY RAG workspace content.\n\nRequired Structure:\n## Funding & Capital Needs\n- Past funding\n- Funding required\n- Stated financing plan\n\n## Financial Health\n- Burn rate if documented\n- Runway visibility\n- Valuation signals if mentioned\n\nRules:\n- Never invent numbers.\n- Investor memo tone.\n- Markdown output without bulleted lists"
+    },
+    {
+      "id": "dd_legal",
+      "title": "Legal & Compliance",
+      "prompt": "Write a LEGAL & COMPLIANCE section using ONLY RAG workspace content.\n\nRequired Structure:\n## Legal & Corporate Structure\n(if available)\n\n## Contracts & Obligations\n(if documented)\n\n## Regulatory Considerations\n(if mentioned)\n\n## IP Ownership / Status\n(if available)\n\nRules:\n- No guessing.\n- Investor memo tone.\n- Markdown output without bulleted lists"
+    },
+    {
+      "id": "dd_risks",
+      "title": "Risks & Mitigation",
+      "prompt": "Create a RISKS & MITIGATION section using ONLY RAG workspace content.\n\nRequired Structure:\n## Key Risks Identified\nList only documented or logically derived risks from materials\n\n## Claimed Mitigations\nOnly include if explicitly stated\n\nRules:\n- No guessing.\n- Investor memo tone.\n- Markdown output without bulleted lists"
+    },
+    {
+      "id": "dd_conclusion",
+      "title": "Conclusion",
+      "prompt": "Write a CONCLUSION for an investor due diligence memo using ONLY evidence from the RAG workspace.\n\nRequired Structure:\n## Final Assessment\n- Short summary of opportunity potential\n\nRules:\n- Do NOT recommend investment or rejection explicitly.\n- Do NOT invent confidence levels.\n- Clearly highlight uncertainty.\n- Markdown output without bulleted lists"
+    }
+  ]
+}
