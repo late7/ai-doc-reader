@@ -434,7 +434,7 @@ export default function DDReportAnalyzer({ workspaceSlug }: DDReportAnalyzerProp
                         </div>
 
                         {results[section.id] ? (
-                            <div className="prose prose-sm sm:prose max-w-none text-gray-700">
+                            <div className="prose prose-sm sm:prose max-w-none text-black">
                                 <ReactMarkdown>{results[section.id]}</ReactMarkdown>
                             </div>
                         ) : (
