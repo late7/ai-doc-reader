@@ -71,10 +71,10 @@ export default function FinancePage() {
               <p className="mt-1 text-gray-600">
                 Financial analysis and reporting tools
               </p>
-              
 
 
-              
+
+
               {/* Analysis Mode Selection */}
               <div className="mt-4">
                 <div className="flex items-center space-x-3">
@@ -84,22 +84,20 @@ export default function FinancePage() {
                       <button
                         type="button"
                         onClick={() => setAnalysisMode('local')}
-                        className={`flex-1 py-2 px-4 text-sm font-medium rounded-full transition-all duration-200 ${
-                          analysisMode === 'local'
+                        className={`flex-1 py-2 px-4 text-sm font-medium rounded-full transition-all duration-200 ${analysisMode === 'local'
                             ? 'bg-white text-blue-600 shadow-sm'
                             : 'text-gray-600 hover:text-gray-800'
-                        }`}
+                          }`}
                       >
                         📁 Local Workspace
                       </button>
                       <button
                         type="button"
                         onClick={() => setAnalysisMode('openai')}
-                        className={`flex-1 py-2 px-4 text-sm font-medium rounded-full transition-all duration-200 ${
-                          analysisMode === 'openai'
+                        className={`flex-1 py-2 px-4 text-sm font-medium rounded-full transition-all duration-200 ${analysisMode === 'openai'
                             ? 'bg-white text-blue-600 shadow-sm'
                             : 'text-gray-600 hover:text-gray-800'
-                        }`}
+                          }`}
                       >
                         🤖 OpenAI Assistant
                       </button>
@@ -107,8 +105,8 @@ export default function FinancePage() {
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
-                  {analysisMode === 'local' 
-                    ? 'Uses local document storage and RAG for analysis (efficient but less accurate)' 
+                  {analysisMode === 'local'
+                    ? 'Uses local document storage and RAG for analysis (efficient but less accurate)'
                     : 'Uses OpenAI ChatGPT Assistant for advanced document analysis (more accurate but uploads documents to OpenAI cloud under Paid plan DPA'
                   }
                 </p>
@@ -120,6 +118,12 @@ export default function FinancePage() {
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
               >
                 📊 Analysis
+              </Link>
+              <Link
+                href="/dd-report"
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium transition-colors"
+              >
+                📑 Due Diligence
               </Link>
               <Link
                 href="/admin"

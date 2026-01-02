@@ -30,8 +30,8 @@ export default function Dashboard() {
 
   const handleWorkspaceSelect = (workspace: Workspace) => {
     setSelectedWorkspace(workspace);
-  // Force remount of QuestionAnalyzer to reset company summary & analysis results
-  setRefreshKey(prev => prev + 1);
+    // Force remount of QuestionAnalyzer to reset company summary & analysis results
+    setRefreshKey(prev => prev + 1);
   };
 
   const handleUploadComplete = () => {
@@ -90,14 +90,20 @@ export default function Dashboard() {
                 </button>
               )}
               {financeEnabled && (
-                <Link 
+                <Link
                   href="/finance"
                   className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium transition-colors"
                 >
                   💰 Finance
                 </Link>
               )}
-              <Link 
+              <Link
+                href="/dd-report"
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium transition-colors"
+              >
+                📑 Due Diligence
+              </Link>
+              <Link
                 href="/admin"
                 className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm font-medium transition-colors"
               >
@@ -107,19 +113,19 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
-      
+
       <main className="max-w-[1920px] mx-auto px-3 py-4 sm:px-4 lg:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-md p-4 space-y-4">
               <Suspense fallback={<div className="h-10 w-full bg-gray-100 animate-pulse rounded-lg"></div>}>
-                <WorkspaceSelector 
+                <WorkspaceSelector
                   onWorkspaceSelect={handleWorkspaceSelect}
                   selectedWorkspace={selectedWorkspace}
                 />
               </Suspense>
-              
+
               {selectedWorkspace && (
                 <DocumentUploader
                   key={selectedWorkspace.slug}
@@ -135,7 +141,7 @@ export default function Dashboard() {
           <div className="lg:col-span-4">
             {selectedWorkspace ? (
               <div className="bg-white rounded-lg shadow-md p-4">
-                <QuestionAnalyzer 
+                <QuestionAnalyzer
                   key={refreshKey}
                   ref={analyzerRef}
                   workspaceSlug={selectedWorkspace.slug}
@@ -144,18 +150,18 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="bg-white rounded-lg shadow-md p-8 text-center">
-                <svg 
-                  className="mx-auto h-16 w-16 text-gray-400" 
-                  fill="none" 
-                  viewBox="0 0 24 24" 
-                  stroke="currentColor" 
+                <svg
+                  className="mx-auto h-16 w-16 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
                   aria-hidden="true"
                 >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={1.5} 
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                   />
                 </svg>
                 <h2 className="mt-4 text-xl font-semibold text-gray-600">

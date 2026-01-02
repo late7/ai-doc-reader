@@ -212,47 +212,47 @@ export default function OpenAIFinanceAnalyzer() {
 
   const downloadTemplate = () => {
     const template = [
-  {
-    "Name": "Revenue",
-    "Instructions": "Total revenue, turnover or net sales. Convert any abbreviated figures (M, K, etc.) to whole numbers and specify the currency."
-  },
-  {
-    "Name": "Funding Raised",
-    "Instructions": "Cumulative equity funding raised to date. Provide the most recent total in absolute numbers and list the period covered."
-  },
-  {
-    "Name": "Burn Rate",
-    "Instructions": "Monthly cash consumption rate. Calculate as the average monthly decrease in cash balance, expressed as a positive number with currency."
-  },
-  {
-    "Name": "Runway",
-    "Instructions": "Number of months until cash depletion at current burn rate. Calculate as current cash divided by monthly burn rate, rounded to one decimal place."
-  },
-  {
-    "Name": "Cash Balance",
-    "Instructions": "Total cash and cash equivalents available. Include both restricted and unrestricted cash, specify currency and reporting date."
-  },
-  {
-    "Name": "Gross Margin",
-    "Instructions": "Gross profit as a percentage of revenue. Calculate as (Revenue - Cost of Goods Sold) / Revenue × 100, expressed as a percentage."
-  },
-  {
-    "Name": "Operating Expenses",
-    "Instructions": "Total operating costs including R&D, sales & marketing, and general & administrative expenses. Exclude cost of goods sold, specify period and currency."
-  },
-  {
-    "Name": "Net Loss",
-    "Instructions": "Bottom line net income (typically negative for startups). Report as a negative number if loss, positive if profit, with currency and period."
-  },
-  {
-    "Name": "Customer Acquisition Cost (CAC)",
-    "Instructions": "Total sales and marketing expenses divided by number of new customers acquired in the period. Specify currency and time period."
-  },
-  {
-    "Name": "Monthly Recurring Revenue (MRR)",
-    "Instructions": "Predictable monthly revenue from subscriptions or recurring contracts. Normalize annual contracts to monthly amounts, specify currency and reporting date."
-  }
-];
+      {
+        "Name": "Revenue",
+        "Instructions": "Total revenue, turnover or net sales. Convert any abbreviated figures (M, K, etc.) to whole numbers and specify the currency."
+      },
+      {
+        "Name": "Funding Raised",
+        "Instructions": "Cumulative equity funding raised to date. Provide the most recent total in absolute numbers and list the period covered."
+      },
+      {
+        "Name": "Burn Rate",
+        "Instructions": "Monthly cash consumption rate. Calculate as the average monthly decrease in cash balance, expressed as a positive number with currency."
+      },
+      {
+        "Name": "Runway",
+        "Instructions": "Number of months until cash depletion at current burn rate. Calculate as current cash divided by monthly burn rate, rounded to one decimal place."
+      },
+      {
+        "Name": "Cash Balance",
+        "Instructions": "Total cash and cash equivalents available. Include both restricted and unrestricted cash, specify currency and reporting date."
+      },
+      {
+        "Name": "Gross Margin",
+        "Instructions": "Gross profit as a percentage of revenue. Calculate as (Revenue - Cost of Goods Sold) / Revenue × 100, expressed as a percentage."
+      },
+      {
+        "Name": "Operating Expenses",
+        "Instructions": "Total operating costs including R&D, sales & marketing, and general & administrative expenses. Exclude cost of goods sold, specify period and currency."
+      },
+      {
+        "Name": "Net Loss",
+        "Instructions": "Bottom line net income (typically negative for startups). Report as a negative number if loss, positive if profit, with currency and period."
+      },
+      {
+        "Name": "Customer Acquisition Cost (CAC)",
+        "Instructions": "Total sales and marketing expenses divided by number of new customers acquired in the period. Specify currency and time period."
+      },
+      {
+        "Name": "Monthly Recurring Revenue (MRR)",
+        "Instructions": "Predictable monthly revenue from subscriptions or recurring contracts. Normalize annual contracts to monthly amounts, specify currency and reporting date."
+      }
+    ];
 
     const ws = XLSX.utils.json_to_sheet(template);
     ws['!cols'] = [
@@ -270,7 +270,7 @@ export default function OpenAIFinanceAnalyzer() {
     const allowedTypes = ['application/pdf'];
     const validFiles = selectedFiles.filter(file => allowedTypes.includes(file.type));
     const invalidFiles = selectedFiles.filter(file => !allowedTypes.includes(file.type));
-    
+
     if (invalidFiles.length > 0) {
       setFileTypeError(
         `${invalidFiles.length} file(s) rejected. Only PDF files are supported by OpenAI Responses API.`
@@ -279,7 +279,7 @@ export default function OpenAIFinanceAnalyzer() {
     } else {
       setFileTypeError(null);
     }
-    
+
     setFiles(validFiles);
   };
 
@@ -308,7 +308,7 @@ export default function OpenAIFinanceAnalyzer() {
     const allowedTypes = ['application/pdf'];
     const validFiles = droppedFiles.filter(file => allowedTypes.includes(file.type));
     const invalidFiles = droppedFiles.filter(file => !allowedTypes.includes(file.type));
-    
+
     if (invalidFiles.length > 0) {
       setFileTypeError(
         `${invalidFiles.length} file(s) rejected. Only PDF files are supported by OpenAI Responses API.`
@@ -317,7 +317,7 @@ export default function OpenAIFinanceAnalyzer() {
     } else {
       setFileTypeError(null);
     }
-    
+
     if (validFiles.length > 0) {
       setFiles(prevFiles => [...prevFiles, ...validFiles]);
     }
@@ -439,7 +439,7 @@ export default function OpenAIFinanceAnalyzer() {
     if (!financialData) return;
 
     const dataStr = JSON.stringify(financialData, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
 
     const exportFileDefaultName = `${financialData.company_name || 'financial_data'}_openai.json`;
 
@@ -453,27 +453,27 @@ export default function OpenAIFinanceAnalyzer() {
     if (!financialData) return;
 
     let ws: XLSX.WorkSheet;
-    
+
     if (isTimeSeriesData(financialData)) {
       // Time Series Excel Export
       const years = Object.keys(Object.values(financialData.financial_data)[0]?.years || {});
-      
+
       const excelData = Object.entries(financialData.financial_data).map(([figureId, figureData]) => {
         if (!('years' in figureData)) return null;
         const configFigure = analyzableFigures.find(f => f.id === figureId);
         const figureName = configFigure?.name || figureData.metric_name || figureId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        
+
         const row: Record<string, any> = {
           Metric: figureName
         };
-        
+
         // Add each year as a column
         years.forEach(year => {
           const yearData = figureData.years[year];
           row[year] = yearData?.value ?? '';
           row[`${year}_Note`] = yearData?.note || '';
         });
-        
+
         return row;
       }).filter(Boolean);
 
@@ -531,7 +531,7 @@ export default function OpenAIFinanceAnalyzer() {
     if (!comprehensiveData) return;
 
     const dataStr = JSON.stringify(comprehensiveData, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
 
     const exportFileDefaultName = `${comprehensiveData.company_name || 'financial_data'}_comprehensive_openai.json`;
 
@@ -599,30 +599,29 @@ export default function OpenAIFinanceAnalyzer() {
             <p className="text-xs text-gray-600 mb-3">
               Upload financial documents for analysis. Supported format: PDF only.
             </p>
-            
+
             {/* File Input with Drag & Drop */}
             <div
-              className={`mb-4 border-2 border-dashed rounded-lg p-4 transition-colors ${
-                dragOver
+              className={`mb-4 border-2 border-dashed rounded-lg p-4 transition-colors ${dragOver
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-300 hover:border-blue-400 bg-gray-50'
-              }`}
+                }`}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
             >
               <div className="text-center">
-                <svg 
-                  className="mx-auto h-8 w-8 text-gray-400 mb-2" 
-                  stroke="currentColor" 
-                  fill="none" 
+                <svg
+                  className="mx-auto h-8 w-8 text-gray-400 mb-2"
+                  stroke="currentColor"
+                  fill="none"
                   viewBox="0 0 48 48"
                 >
-                  <path 
-                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" 
-                    strokeWidth={2} 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
+                  <path
+                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
                 </svg>
                 <label htmlFor="file-upload" className="cursor-pointer">
@@ -757,17 +756,16 @@ export default function OpenAIFinanceAnalyzer() {
                 />
                 <span>Use uploaded Excel guidance</span>
               </label>
-              
+
             </div>
 
             <div
-              className={`mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-6 transition-opacity ${
-                analysisMode === 'excel' ? 'opacity-100' : 'opacity-50'
-              }`}
+              className={`mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-6 transition-opacity ${analysisMode === 'excel' ? 'opacity-100' : 'opacity-50'
+                }`}
               aria-disabled={analysisMode !== 'excel'}
             >
               <div className="flex-1">
-                <span className="block text-sm font-medium text-gray-700 mb-1">Upload Excel (.xlsx) with columns "Name" and "Instructions"</span>
+                <span className="block text-sm font-medium text-gray-700 mb-1">Upload Excel (.xlsx) with columns &quot;Name&quot; and &quot;Instructions&quot;</span>
                 <div className="flex items-center gap-3">
                   <input
                     ref={excelFileInputRef}
@@ -820,7 +818,7 @@ export default function OpenAIFinanceAnalyzer() {
             <div className="mt-6 pt-6 border-t border-gray-200">
               <h4 className="text-base font-semibold text-gray-900 mb-3">Analysis Type</h4>
               <p className="text-sm text-gray-600 mb-4">Choose between basic single-period analysis or time series analysis across multiple years.</p>
-              
+
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
                 <label className="inline-flex items-start space-x-2 text-sm text-gray-700">
                   <input
@@ -856,7 +854,7 @@ export default function OpenAIFinanceAnalyzer() {
             <div className="mt-6 pt-6 border-t border-gray-200">
               <h4 className="text-base font-semibold text-gray-900 mb-3">Comprehensive Data Extraction</h4>
               <p className="text-sm text-gray-600 mb-4">Extract all numerical financial data found in documents, including revenue, costs, metrics, and KPIs across all time periods.</p>
-              
+
               <button
                 onClick={analyzeComprehensiveWithOpenAI}
                 disabled={loading || files.length === 0}
@@ -907,9 +905,9 @@ export default function OpenAIFinanceAnalyzer() {
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900">{financialData.company_name || 'Unknown Company'}</h2>
             <p className="text-lg text-gray-600 mt-2">
-              {isTimeSeriesData(financialData) 
+              {isTimeSeriesData(financialData)
                 ? `Time Series Analysis • ${financialData.currency || 'Unknown Currency'}`
-                : !isComprehensiveData(financialData) 
+                : !isComprehensiveData(financialData)
                   ? `${financialData.report_period || 'Unknown Period'} • ${financialData.currency || 'Unknown Currency'}`
                   : `${financialData.currency || 'Unknown Currency'}`
               }
@@ -940,7 +938,7 @@ export default function OpenAIFinanceAnalyzer() {
                       if (!('years' in figureData)) return null;
                       const configFigure = analyzableFigures.find(f => f.id === figureId);
                       const figureName = configFigure?.name || figureData.metric_name || figureId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                      
+
                       return (
                         <tr key={figureId}>
                           <td className="px-4 py-4 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
@@ -950,7 +948,7 @@ export default function OpenAIFinanceAnalyzer() {
                             <td key={year} className="px-4 py-4 text-sm text-gray-900">
                               <div className="flex flex-col">
                                 <span className={yearData.value === null ? 'text-gray-400' : ''}>
-                                  {yearData.value !== null 
+                                  {yearData.value !== null
                                     ? formatCurrency(yearData.value, yearData.currency || financialData.currency)
                                     : 'N/A'
                                   }
@@ -990,7 +988,7 @@ export default function OpenAIFinanceAnalyzer() {
                       if ('years' in figureData) return null;
                       const configFigure = analyzableFigures.find(f => f.id === figureId);
                       const figureName = configFigure?.name || figureId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                      
+
                       return (
                         <tr key={figureId}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">

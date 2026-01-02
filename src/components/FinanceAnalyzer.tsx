@@ -135,8 +135,8 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
       return;
     }
 
-  setExcelError(null);
-  setError(null);
+    setExcelError(null);
+    setError(null);
 
     try {
       const data = await file.arrayBuffer();
@@ -191,10 +191,10 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
         throw new Error('No valid rows found. Please provide at least one row with "Name" and "Instructions" columns.');
       }
 
-  setAnalyzableFigures(parsedFigures);
+      setAnalyzableFigures(parsedFigures);
       setFinancialData(null);
       setUploadedFiguresName(file.name);
-  handleAnalysisModeChange('excel', { preserveFigures: true });
+      handleAnalysisModeChange('excel', { preserveFigures: true });
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : 'Failed to read the Excel file.';
       setExcelError(message);
@@ -212,47 +212,47 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
 
   const downloadTemplate = () => {
     const template = [
-  {
-    "Name": "Revenue",
-    "Instructions": "Total revenue, turnover or net sales. Convert any abbreviated figures (M, K, etc.) to whole numbers and specify the currency."
-  },
-  {
-    "Name": "Funding Raised",
-    "Instructions": "Cumulative equity funding raised to date. Provide the most recent total in absolute numbers and list the period covered."
-  },
-  {
-    "Name": "Burn Rate",
-    "Instructions": "Monthly cash consumption rate. Calculate as the average monthly decrease in cash balance, expressed as a positive number with currency."
-  },
-  {
-    "Name": "Runway",
-    "Instructions": "Number of months until cash depletion at current burn rate. Calculate as current cash divided by monthly burn rate, rounded to one decimal place."
-  },
-  {
-    "Name": "Cash Balance",
-    "Instructions": "Total cash and cash equivalents available. Include both restricted and unrestricted cash, specify currency and reporting date."
-  },
-  {
-    "Name": "Gross Margin",
-    "Instructions": "Gross profit as a percentage of revenue. Calculate as (Revenue - Cost of Goods Sold) / Revenue × 100, expressed as a percentage."
-  },
-  {
-    "Name": "Operating Expenses",
-    "Instructions": "Total operating costs including R&D, sales & marketing, and general & administrative expenses. Exclude cost of goods sold, specify period and currency."
-  },
-  {
-    "Name": "Net Loss",
-    "Instructions": "Bottom line net income (typically negative for startups). Report as a negative number if loss, positive if profit, with currency and period."
-  },
-  {
-    "Name": "Customer Acquisition Cost (CAC)",
-    "Instructions": "Total sales and marketing expenses divided by number of new customers acquired in the period. Specify currency and time period."
-  },
-  {
-    "Name": "Monthly Recurring Revenue (MRR)",
-    "Instructions": "Predictable monthly revenue from subscriptions or recurring contracts. Normalize annual contracts to monthly amounts, specify currency and reporting date."
-  }
-];
+      {
+        "Name": "Revenue",
+        "Instructions": "Total revenue, turnover or net sales. Convert any abbreviated figures (M, K, etc.) to whole numbers and specify the currency."
+      },
+      {
+        "Name": "Funding Raised",
+        "Instructions": "Cumulative equity funding raised to date. Provide the most recent total in absolute numbers and list the period covered."
+      },
+      {
+        "Name": "Burn Rate",
+        "Instructions": "Monthly cash consumption rate. Calculate as the average monthly decrease in cash balance, expressed as a positive number with currency."
+      },
+      {
+        "Name": "Runway",
+        "Instructions": "Number of months until cash depletion at current burn rate. Calculate as current cash divided by monthly burn rate, rounded to one decimal place."
+      },
+      {
+        "Name": "Cash Balance",
+        "Instructions": "Total cash and cash equivalents available. Include both restricted and unrestricted cash, specify currency and reporting date."
+      },
+      {
+        "Name": "Gross Margin",
+        "Instructions": "Gross profit as a percentage of revenue. Calculate as (Revenue - Cost of Goods Sold) / Revenue × 100, expressed as a percentage."
+      },
+      {
+        "Name": "Operating Expenses",
+        "Instructions": "Total operating costs including R&D, sales & marketing, and general & administrative expenses. Exclude cost of goods sold, specify period and currency."
+      },
+      {
+        "Name": "Net Loss",
+        "Instructions": "Bottom line net income (typically negative for startups). Report as a negative number if loss, positive if profit, with currency and period."
+      },
+      {
+        "Name": "Customer Acquisition Cost (CAC)",
+        "Instructions": "Total sales and marketing expenses divided by number of new customers acquired in the period. Specify currency and time period."
+      },
+      {
+        "Name": "Monthly Recurring Revenue (MRR)",
+        "Instructions": "Predictable monthly revenue from subscriptions or recurring contracts. Normalize annual contracts to monthly amounts, specify currency and reporting date."
+      }
+    ];
 
     const ws = XLSX.utils.json_to_sheet(template);
     ws['!cols'] = [
@@ -357,7 +357,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
     if (!financialData) return;
 
     const dataStr = JSON.stringify(financialData, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
 
     const safeWorkspace = (workspaceSlug || workspaceName || 'workspace').replace(/[^a-zA-Z0-9-_]+/g, '_');
     const exportFileDefaultName = `${safeWorkspace}_financial_data.json`;
@@ -372,27 +372,27 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
     if (!financialData) return;
 
     let ws: XLSX.WorkSheet;
-    
+
     if (isTimeSeriesData(financialData)) {
       // Time Series Excel Export
       const years = Object.keys(Object.values(financialData.financial_data)[0]?.years || {});
-      
+
       const excelData = analyzableFigures.map(figure => {
         const figureData = financialData.financial_data[figure.id];
         if (!figureData || !('years' in figureData)) return null;
-        
+
         const row: Record<string, any> = {
           Metric: figure.name,
           Guidance: figure.description
         };
-        
+
         // Add each year as a column
         years.forEach(year => {
           const yearData = figureData.years[year];
           row[year] = yearData?.value ?? '';
           row[`${year}_Note`] = yearData?.note || '';
         });
-        
+
         return row;
       }).filter(Boolean);
 
@@ -413,7 +413,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
       const excelData = analyzableFigures.map(figure => {
         const figureData = financialData.financial_data[figure.id];
         if (!figureData || 'years' in figureData) return null;
-        
+
         return {
           Metric: figure.name,
           Value: figureData.value ?? '',
@@ -455,7 +455,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
     if (!comprehensiveData) return;
 
     const dataStr = JSON.stringify(comprehensiveData, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
 
     const safeWorkspace = (workspaceSlug || workspaceName || 'workspace').replace(/[^a-zA-Z0-9-_]+/g, '_');
     const exportFileDefaultName = `${safeWorkspace}_comprehensive_financial_data.json`;
@@ -579,13 +579,12 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
         </div>
 
         <div
-          className={`mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-6 transition-opacity ${
-            analysisMode === 'excel' ? 'opacity-100' : 'opacity-50'
-          }`}
+          className={`mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-6 transition-opacity ${analysisMode === 'excel' ? 'opacity-100' : 'opacity-50'
+            }`}
           aria-disabled={analysisMode !== 'excel'}
         >
           <div className="flex-1">
-            <span className="block text-sm font-medium text-gray-700 mb-1">Upload Excel (.xlsx) with columns "Name" and "Instructions"</span>
+            <span className="block text-sm font-medium text-gray-700 mb-1">Upload Excel (.xlsx) with columns &quot;Name&quot; and &quot;Instructions&quot;</span>
             <div className="flex items-center gap-3">
               <input
                 ref={fileInputRef}
@@ -617,7 +616,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
           >
             Download Template Excel
           </button>
-      </div>
+        </div>
         <div>
           {uploadedFiguresName && analysisMode === 'excel' && (
             <p className="mt-3 text-sm text-gray-600">
@@ -643,7 +642,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
         <div className="mt-6 pt-6 border-t border-gray-200">
           <h4 className="text-base font-semibold text-gray-900 mb-3">Analysis Type</h4>
           <p className="text-sm text-gray-600 mb-4">Choose between basic single-period analysis or time series analysis across multiple years.</p>
-          
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
             <label className="inline-flex items-start space-x-2 text-sm text-gray-700">
               <input
@@ -679,7 +678,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
         <div className="mt-6 pt-6 border-t border-gray-200">
           <h4 className="text-base font-semibold text-gray-900 mb-3">Comprehensive Data Extraction</h4>
           <p className="text-sm text-gray-600 mb-4">Extract all numerical financial data found in documents, including revenue, costs, metrics, and KPIs across all time periods.</p>
-          
+
           <button
             onClick={analyzeComprehensive}
             disabled={loading}
@@ -703,7 +702,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
             )}
           </button>
         </div>
-        
+
 
 
       </div>
@@ -748,7 +747,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
                     {analyzableFigures.map((figure) => {
                       const figureData = financialData.financial_data[figure.id];
                       if (!figureData || !('years' in figureData)) return null;
-                      
+
                       return (
                         <tr key={figure.id}>
                           <td className="px-4 py-4 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
@@ -758,7 +757,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
                             <td key={year} className="px-4 py-4 text-sm text-gray-900">
                               <div className="flex flex-col">
                                 <span className={yearData.value === null ? 'text-gray-400' : ''}>
-                                  {yearData.value !== null 
+                                  {yearData.value !== null
                                     ? formatCurrency(yearData.value, yearData.currency || financialData.currency)
                                     : 'N/A'
                                   }
@@ -798,7 +797,7 @@ export default function FinanceAnalyzer({ workspaceSlug, workspaceName }: Financ
                       if (isComprehensiveData(financialData)) return null;
                       const figureData = financialData.financial_data[figure.id];
                       if (!figureData || 'years' in figureData) return null;
-                      
+
                       return (
                         <tr key={figure.id}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
