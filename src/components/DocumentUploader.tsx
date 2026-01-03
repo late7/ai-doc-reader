@@ -288,8 +288,8 @@ const DocumentUploader = forwardRef<DocumentUploaderRef, DocumentUploaderProps>(
               onClick={fetchDocuments}
               disabled={loading}
               className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${loading
-                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 hover:text-gray-800'
+                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 hover:text-gray-800'
                 }`}
               title="Refresh document list"
             >
@@ -419,8 +419,8 @@ const DocumentUploader = forwardRef<DocumentUploaderRef, DocumentUploaderProps>(
         {/* Upload Box Section - Moved to bottom */}
         <div
           className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${dragOver
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-300 hover:border-blue-400 bg-white'
+            ? 'border-blue-500 bg-blue-50'
+            : 'border-gray-300 hover:border-blue-400 bg-white'
             }`}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -451,12 +451,12 @@ const DocumentUploader = forwardRef<DocumentUploaderRef, DocumentUploaderProps>(
                 <span className="font-medium">Drag and drop files</span> or click to upload
               </p>
               <p className="text-xs text-gray-500 mb-4">
-                Support for PDF, DOC, DOCX, XLS, TXT, and MD files
+                Support for PDF, DOC, DOCX, XLS, CSV, TXT, and MD files
               </p>
               <input
                 type="file"
                 multiple
-                accept=".pdf,.doc,.docx,.xls,.txt,.md"
+                accept=".pdf,.doc,.docx,.xls,.csv,text/csv,.txt,.md"
                 onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
                 className="hidden"
                 id="file-upload"

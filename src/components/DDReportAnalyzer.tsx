@@ -131,7 +131,11 @@ export default function DDReportAnalyzer({ workspaceSlug }: DDReportAnalyzerProp
             const response = await fetch('/api/dd-report/run', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ workspaceSlug, prompt: section.prompt }),
+                body: JSON.stringify({
+                    workspaceSlug,
+                    prompt: section.prompt,
+                    existingFindings: results // Send all current results as context
+                }),
             });
 
             if (response.ok) {
@@ -350,7 +354,7 @@ export default function DDReportAnalyzer({ workspaceSlug }: DDReportAnalyzerProp
                                                 value={editValues.prompt}
                                                 onChange={(e) => setEditValues({ ...editValues, prompt: e.target.value })}
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                rows={3}
+                                                rows={15}
                                                 placeholder="AI Prompt"
                                             />
                                             <div className="flex space-x-2">
