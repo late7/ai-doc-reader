@@ -1,0 +1,159 @@
+{
+  "document_metadata": {
+    "company_name": {
+      "update_rule": "overwrite",
+      "instruction": "Extract the company name exactly as stated in the documents."
+    },
+    "legal_entity": {
+      "update_rule": "overwrite",
+      "instruction": "Extract the legal entity name and legal form if explicitly stated."
+    },
+    "jurisdiction": {
+      "update_rule": "overwrite",
+      "instruction": "Extract the jurisdiction of incorporation if explicitly stated."
+    },
+    "dd_version": {
+      "update_rule": "locked",
+      "instruction": "This field is locked and must not be modified by AI."
+    },
+    "last_updated": {
+      "update_rule": "overwrite",
+      "instruction": "Extract the most recent document date referenced."
+    },
+    "sources_reviewed": {
+      "update_rule": "append",
+      "instruction": "List source documents reviewed using exact file names."
+    }
+  },
+
+  "1_executive_summary": {
+    "1_1_investment_snapshot": {
+      "update_rule": "locked",
+      "instruction": "This section is intentionally locked and must not be modified by AI."
+    },
+    "1_2_key_facts_at_a_glance": {
+      "update_rule": "locked",
+      "instruction": "This section is intentionally locked and must not be modified by AI."
+    }
+  },
+
+  "2_company_overview": {
+    "2_1_company_description": {
+      "update_rule": "append",
+      "instruction": "Describe what the company does using factual language from the document."
+    },
+    "2_2_problem_statement": {
+      "update_rule": "append",
+      "instruction": "Extract the problem the company claims to address, only if explicitly described."
+    },
+    "2_3_solution_overview": {
+      "update_rule": "append",
+      "instruction": "Describe the solution as documented, separating current functionality from planned items."
+    },
+    "2_4_business_model": {
+      "update_rule": "overwrite",
+      "instruction": "Extract how the company generates revenue, including pricing models, if documented."
+    }
+  },
+
+  "4_product_and_technology": {
+    "4_1_product_description": {
+      "update_rule": "append",
+      "instruction": "Describe products or modules offered by the company as documented."
+    },
+    "4_2_product_maturity_and_roadmap": {
+      "update_rule": "overwrite",
+      "instruction": "Extract statements about product maturity and roadmap if explicitly stated."
+    },
+    "4_3_technology_stack_and_architecture": {
+      "update_rule": "append",
+      "instruction": "List technologies, platforms, and architecture components explicitly referenced."
+    },
+    "4_4_technical_dependencies_and_constraints": {
+      "update_rule": "append",
+      "instruction": "Extract stated technical dependencies, integrations, or constraints."
+    }
+  },
+
+  "5_intellectual_property": {
+    "5_1_patents_and_trademarks": {
+      "update_rule": "overwrite",
+      "instruction": "List patents or trademarks only if explicitly documented."
+    },
+    "5_2_ip_ownership_and_assignment": {
+      "update_rule": "overwrite",
+      "instruction": "Describe IP ownership or assignment arrangements if stated."
+    }
+  },
+
+  "6_team_and_organization": {
+    "6_1_founders_and_executive_team": {
+      "update_rule": "overwrite",
+      "instruction": "List founders and executives with roles as documented."
+    },
+    "6_2_key_staff_and_advisors": {
+      "update_rule": "append",
+      "instruction": "List key employees and advisors if explicitly named."
+    },
+    "6_3_organization_structure_and_hiring_plan": {
+      "update_rule": "overwrite",
+      "instruction": "Extract organization structure, open roles, and hiring plans if documented."
+    },
+    "6_4_founder_commitment_and_incentives": {
+      "update_rule": "overwrite",
+      "instruction": "Extract information on founder commitment, vesting, or incentives if explicitly stated."
+    }
+  },
+
+  "7_customers_and_traction": {
+    "7_1_customer_segments": {
+      "update_rule": "overwrite",
+      "instruction": "List customer segments based on documented information."
+    },
+    "7_2_named_customers_and_leads": {
+      "update_rule": "append",
+      "instruction": "List named customers, pilots, or leads if explicitly mentioned."
+    },
+    "7_3_traction_and_revenue_metrics": {
+      "update_rule": "append",
+      "instruction": "Extract revenue figures and traction metrics if documented."
+    },
+    "7_4_customer_validation_status": {
+      "update_rule": "append",
+      "instruction": "Extract evidence of paid customers, pilots, contracts, or references if stated."
+    }
+  },
+
+
+
+  "10_funding_and_capital_structure": {
+    "10_1_capitalization_table": {
+      "update_rule": "overwrite",
+      "instruction": "Extract ownership structure and shareholdings if documented."
+    },
+    "10_2_safe_instruments_and_terms": {
+      "update_rule": "overwrite",
+      "instruction": "Extract SAFE or convertible instrument details if stated."
+    },
+    "10_3_current_fundraising_round": {
+      "update_rule": "overwrite",
+      "instruction": "Extract details of the current fundraising round if documented."
+    },
+    "10_4_use_of_funds": {
+      "update_rule": "overwrite",
+      "instruction": "Extract stated plans for use of funds if documented."
+    }
+  },
+
+  "12_milestones_and_value_creation": {
+    "12_1_near_term_milestones": {
+      "update_rule": "overwrite",
+      "instruction": "Extract near-term milestones if explicitly documented."
+    },
+    "12_2_medium_term_milestones": {
+      "update_rule": "overwrite",
+      "instruction": "Extract medium-term milestones if documented."
+    }
+  }
+
+}
