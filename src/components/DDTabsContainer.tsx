@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import CanonicalContentTab from './CanonicalContentTab';
+import FinalDDTab from './FinalDDTab';
 
 interface DDTabsContainerProps {
     workspaceSlug: string;
@@ -125,7 +126,16 @@ export default function DDTabsContainer({ workspaceSlug }: DDTabsContainerProps)
             return (
                 <CanonicalContentTab
                     workspaceSlug={workspaceSlug}
-                    onStatusChange={(status) => updateTabStatus('canonical', status)}
+                    onStatusChange={(status: 'not_started' | 'in_progress' | 'completed') => updateTabStatus('canonical', status)}
+                />
+            );
+        }
+
+        if (tab.id === 'final') {
+            return (
+                <FinalDDTab
+                    workspaceSlug={workspaceSlug}
+                    onStatusChange={(status: 'not_started' | 'in_progress' | 'completed') => updateTabStatus('final', status)}
                 />
             );
         }
