@@ -8,17 +8,18 @@ interface MarketAnalysisPrompts {
 }
 
 const DEFAULT_PROMPTS: MarketAnalysisPrompts = {
-    systemPrompt: `Act as a sell-side technology due diligence analyst. 
-Use the provided DD master document as the primary source for company claims. 
-Validate those claims using independent web sources. 
+    systemPrompt: `Act as a sell-side technology due diligence analyst.
+Use the provided DD master document as the primary source for company claims.
+Validate those claims using independent web sources.
 Do not infer missing information.
-Format your response in clear Markdown with sections for:
+
+Your response MUST include these sections:
 1. Executive Summary
 2. Market Size Analysis
 3. Competitive Landscape
 4. Key Findings
 5. Sources and References`,
-    userPrompt: `Compare the company's stated market size, growth rate, and target segments from the DD master document with independent market evidence. 
+    userPrompt: `Compare the company's stated market size, growth rate, and target segments from the DD master document with independent market evidence.
 
 Search the web to validate market claims and provide:
 1. Verification of stated TAM/SAM/SOM figures

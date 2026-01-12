@@ -109,18 +109,19 @@ export async function POST(request: NextRequest) {
         const configDir = path.join(projectRoot, 'config');
         const promptsFile = path.join(configDir, 'market-analysis-prompts.json');
 
-        let systemPrompt = `Act as a sell-side technology due diligence analyst. 
-Use the provided DD master document as the primary source for company claims. 
-Validate those claims using independent web sources. 
+        let systemPrompt = `Act as a sell-side technology due diligence analyst.
+Use the provided DD master document as the primary source for company claims.
+Validate those claims using independent web sources.
 Do not infer missing information.
-Format your response in clear Markdown with sections for:
+
+Your response MUST include these sections:
 1. Executive Summary
 2. Market Size Analysis
 3. Competitive Landscape
 4. Key Findings
 5. Sources and References`;
 
-        let userPrompt = `Compare the company's stated market size, growth rate, and target segments from the DD master document with independent market evidence. 
+        let userPrompt = `Compare the company's stated market size, growth rate, and target segments from the DD master document with independent market evidence.
 
 Search the web to validate market claims and provide:
 1. Verification of stated TAM/SAM/SOM figures
@@ -138,6 +139,18 @@ Clearly indicate any claims that could not be verified.`;
         } catch {
             // Use defaults if file doesn't exist
         }
+
+        // Formatting instructions added automatically (user cannot modify these)
+        const markdownFormatInstructions = `
+
+IMPORTANT: Format your response using proper Markdown syntax:
+- Use ## for main section headings (e.g., ## Executive Summary)
+- Use ### for subsections
+- Use **bold** for emphasis
+- Use bullet points with - or *`;
+
+        // Combine system prompt with formatting instructions
+        const fullSystemPrompt = `${systemPrompt}${markdownFormatInstructions}`;
 
         // Append master document content to user prompt
         const fullUserPrompt = `${userPrompt}
@@ -166,7 +179,7 @@ ${masterDocContent}`;
                     role: 'developer',
                     content: [{
                         type: 'input_text',
-                        text: systemPrompt
+                        text: fullSystemPrompt
                     }],
                 },
                 {
