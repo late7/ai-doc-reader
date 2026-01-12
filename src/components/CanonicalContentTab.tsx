@@ -114,31 +114,29 @@ export default function CanonicalContentTab({ workspaceSlug, onStatusChange }: C
         onStatusChange('in_progress');
 
         try {
-            const response = await fetch('/api/dd-process/compile-cloud', {
+            // Make the API call without awaiting the full result
+            // The server will process files and update status
+            fetch('/api/dd-process/compile-cloud', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ workspaceSlug }),
+            }).then(async (response) => {
+                // This callback happens when the full processing is done  
+                const data = await response.json();
+                if (!response.ok) {
+                    setCompileStatus({
+                        status: 'error',
+                        progress: '',
+                        error: data.message || 'Failed to process with cloud AI',
+                    });
+                    onStatusChange('not_started');
+                }
+            }).catch((error) => {
+                console.error('Cloud compilation error:', error);
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                setCompileStatus({
-                    status: 'error',
-                    progress: '',
-                    error: data.message || 'Failed to process with cloud AI',
-                });
-                onStatusChange('not_started');
-            } else {
-                // Cloud processing is synchronous, so we get the result immediately
-                setCompileStatus({
-                    status: 'completed',
-                    progress: data.message || 'Cloud processing completed!',
-                    error: null,
-                });
-                onStatusChange('completed');
-                loadMasterDocument();
-            }
+            // Start polling for status updates (cloud processes files one by one)
+            // The actual result will come from the status polling
         } catch (error) {
             setCompileStatus({
                 status: 'error',

@@ -124,40 +124,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        await updateStatus(statusFile, { progress: `Found ${validFiles.length} files. Preparing for upload...` });
-
-        // Prepare files for OpenAI
-        const encodedFiles: Array<{
-            type: 'input_file';
-            filename: string;
-            file_data: string;
-        }> = [];
-
-        for (const file of validFiles) {
-            try {
-                const fileBuffer = await fs.readFile(file.path);
-                const base64Content = Buffer.from(fileBuffer).toString('base64');
-                const mimeType = ALLOWED_MIME_TYPES[file.ext] || 'application/octet-stream';
-
-                encodedFiles.push({
-                    type: 'input_file',
-                    filename: file.name,
-                    file_data: `data:${mimeType};base64,${base64Content}`,
-                });
-            } catch (e) {
-                console.error(`Failed to read file ${file.name}:`, e);
-            }
-        }
-
-        if (encodedFiles.length === 0) {
-            await updateStatus(statusFile, { status: 'error', error: 'Failed to process any files' });
-            return NextResponse.json(
-                { success: false, message: 'Failed to process any files' },
-                { status: 500 }
-            );
-        }
-
-        await updateStatus(statusFile, { progress: `Sending ${encodedFiles.length} files to OpenAI...` });
+        await updateStatus(statusFile, { progress: `Found ${validFiles.length} files. Starting analysis...` });
 
         // Build the field catalog from template
         const fieldCatalog = collectFieldCatalog(template);
@@ -170,102 +137,148 @@ export async function POST(request: NextRequest) {
             apiKey: process.env.OPENAI_API_KEY,
         });
 
-        // Call OpenAI Responses API with file attachments
-        await updateStatus(statusFile, { progress: 'Analyzing documents with AI...' });
+        // Initialize output document from template
+        const outputDoc = JSON.parse(JSON.stringify(template));
+        initializeLeafNodes(outputDoc);
 
-        const response = await openai.responses.create({
-            model: process.env.OPENAI_MODEL || 'gpt-5-mini',
-            input: [
-                {
-                    role: 'developer',
-                    content: [
+        // Track all source files processed
+        const processedSourceFiles: string[] = [];
+        let totalExtractionsCount = 0;
+
+        // Process each file individually for better accuracy
+        for (let fileIndex = 0; fileIndex < validFiles.length; fileIndex++) {
+            const file = validFiles[fileIndex];
+            const fileProgress = `Processing file ${fileIndex + 1} of ${validFiles.length}: ${file.name}`;
+            await updateStatus(statusFile, { progress: fileProgress });
+
+            try {
+                // Read and encode the file
+                const fileBuffer = await fs.readFile(file.path);
+                const base64Content = Buffer.from(fileBuffer).toString('base64');
+                const mimeType = ALLOWED_MIME_TYPES[file.ext] || 'application/octet-stream';
+
+                const encodedFile = {
+                    type: 'input_file' as const,
+                    filename: file.name,
+                    file_data: `data:${mimeType};base64,${base64Content}`,
+                };
+
+                // Call OpenAI for this single file
+                await updateStatus(statusFile, { progress: `Analyzing ${file.name} with AI... (${fileIndex + 1}/${validFiles.length})` });
+
+                const response = await openai.responses.create({
+                    model: process.env.OPENAI_MODEL || 'gpt-5.2',
+                    input: [
                         {
-                            type: 'input_text',
-                            text: systemPrompt,
+                            role: 'developer',
+                            content: [
+                                {
+                                    type: 'input_text',
+                                    text: systemPrompt,
+                                },
+                            ],
+                        },
+                        {
+                            role: 'user',
+                            content: [
+                                {
+                                    type: 'input_text',
+                                    text: `Analyze the attached document "${file.name}" and extract the relevant information for the Due Diligence report. Return only valid JSON matching the output_format specified. Focus on extracting all relevant facts from this specific document.`,
+                                },
+                                encodedFile,
+                            ],
                         },
                     ],
-                },
-                {
-                    role: 'user',
-                    content: [
-                        {
-                            type: 'input_text',
-                            text: 'Analyze all the attached documents and extract the relevant information for the Due Diligence report. Return only valid JSON matching the output_format specified.',
+                    text: {
+                        format: {
+                            type: 'json_object',
                         },
-                        ...encodedFiles,
-                    ],
-                },
-            ],
-            text: {
-                format: {
-                    type: 'json_object',
-                },
-                verbosity: 'low',
-            },
-            reasoning: {
-                effort: 'high',
-                summary: null,
-            },
-            tools: [],
-            store: false,
-        });
+                        verbosity: 'low',
+                    },
+                    reasoning: {
+                        effort: 'medium',
+                        summary: null,
+                    },
+                    tools: [],
+                    store: false,
+                });
 
-        await updateStatus(statusFile, { progress: 'Processing AI response...' });
+                // Extract response text
+                const responseText = extractResponseText(response);
 
-        // Extract response text
-        const responseText = extractResponseText(response);
+                if (responseText) {
+                    // Parse and merge the extractions
+                    try {
+                        let extractedData = JSON.parse(responseText);
 
-        if (!responseText) {
-            await updateStatus(statusFile, { status: 'error', error: 'No response from OpenAI' });
-            return NextResponse.json(
-                { success: false, message: 'No response from OpenAI' },
-                { status: 500 }
-            );
-        }
+                        // Handle case where JSON is wrapped
+                        if (!extractedData.extractions) {
+                            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                            if (jsonMatch) {
+                                extractedData = JSON.parse(jsonMatch[0]);
+                            }
+                        }
 
-        // Parse the response
-        let extractedData: Record<string, unknown>;
-        try {
-            extractedData = JSON.parse(responseText);
-        } catch {
-            // Try to extract JSON from response
-            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                try {
-                    extractedData = JSON.parse(jsonMatch[0]);
-                } catch {
-                    await updateStatus(statusFile, { status: 'error', error: 'Failed to parse AI response as JSON' });
-                    return NextResponse.json(
-                        { success: false, message: 'Failed to parse AI response' },
-                        { status: 500 }
-                    );
+                        if (extractedData.extractions) {
+                            const extractionCount = mergeExtractions(outputDoc, extractedData.extractions, file.name);
+                            totalExtractionsCount += extractionCount;
+                            processedSourceFiles.push(file.name);
+
+                            await updateStatus(statusFile, {
+                                progress: `Completed ${file.name}: extracted ${extractionCount} items (${fileIndex + 1}/${validFiles.length} files done)`
+                            });
+                        }
+                    } catch (parseError) {
+                        console.warn(`Failed to parse response for ${file.name}:`, parseError);
+                        await updateStatus(statusFile, {
+                            progress: `Warning: Could not parse AI response for ${file.name}, continuing...`
+                        });
+                    }
+                } else {
+                    console.warn(`No response text for ${file.name}`);
+                    await updateStatus(statusFile, {
+                        progress: `Warning: No AI response for ${file.name}, continuing...`
+                    });
                 }
-            } else {
-                await updateStatus(statusFile, { status: 'error', error: 'Invalid AI response format' });
-                return NextResponse.json(
-                    { success: false, message: 'Invalid AI response format' },
-                    { status: 500 }
-                );
+            } catch (fileError) {
+                console.error(`Error processing file ${file.name}:`, fileError);
+                await updateStatus(statusFile, {
+                    progress: `Error processing ${file.name}: ${fileError instanceof Error ? fileError.message : 'Unknown error'}, continuing...`
+                });
+            }
+
+            // Small delay between files to avoid rate limiting
+            if (fileIndex < validFiles.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
 
-        // Build the output document
-        await updateStatus(statusFile, { progress: 'Building master document...' });
-        const outputDoc = buildOutputDocument(template, extractedData, validFiles.map(f => f.name));
+        // Fill sources reviewed
+        try {
+            const metadata = outputDoc.document_metadata as Record<string, unknown>;
+            const sourcesReviewed = metadata?.sources_reviewed as Record<string, unknown>;
+            if (sourcesReviewed && typeof sourcesReviewed === 'object') {
+                sourcesReviewed.extracted = processedSourceFiles;
+            }
+        } catch {
+            // Ignore if path doesn't exist
+        }
 
         // Write the output
+        await updateStatus(statusFile, { progress: 'Writing master document...' });
         await fs.writeFile(outputFile, JSON.stringify(outputDoc, null, 2), 'utf-8');
 
         await updateStatus(statusFile, {
             status: 'completed',
-            progress: `Completed! Processed ${encodedFiles.length} files with cloud AI.`,
+            progress: `Completed! Processed ${processedSourceFiles.length} files, extracted ${totalExtractionsCount} items.`,
             error: null
         });
 
         return NextResponse.json({
             success: true,
-            message: 'Cloud compilation completed',
-            filesProcessed: encodedFiles.length,
+            message: `Cloud compilation completed: ${processedSourceFiles.length} files, ${totalExtractionsCount} extractions`,
+            filesProcessed: processedSourceFiles.length,
+            extractionsCount: totalExtractionsCount,
         });
 
     } catch (error) {
@@ -375,6 +388,92 @@ function extractResponseText(response: unknown): string | null {
     }
 
     return null;
+}
+
+// Merge extractions from a single file into the output document
+function mergeExtractions(
+    outputDoc: Record<string, unknown>,
+    extractions: Record<string, { value: unknown; sources?: string[] }>,
+    sourceFile: string
+): number {
+    let mergedCount = 0;
+
+    for (const [pointer, extraction] of Object.entries(extractions)) {
+        try {
+            const parts = pointer.split('/').filter(p => p);
+            let current = outputDoc;
+
+            // Navigate to parent
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (current[parts[i]] && typeof current[parts[i]] === 'object') {
+                    current = current[parts[i]] as Record<string, unknown>;
+                } else {
+                    throw new Error(`Path not found: ${pointer}`);
+                }
+            }
+
+            const leafKey = parts[parts.length - 1];
+            if (current[leafKey] && typeof current[leafKey] === 'object') {
+                const leaf = current[leafKey] as Record<string, unknown>;
+                const updateRule = String(leaf.update_rule || '').toLowerCase();
+
+                // Skip locked fields
+                if (updateRule === 'locked') continue;
+
+                // Handle evidence
+                if (!Array.isArray(leaf.evidence)) {
+                    leaf.evidence = [];
+                }
+                const evidenceArray = leaf.evidence as Array<{ source_file: string; source_location: string; quote: string }>;
+                evidenceArray.push({
+                    source_file: sourceFile,
+                    source_location: 'document',
+                    quote: `Extracted from ${sourceFile}`,
+                });
+
+                // Handle value based on update rule
+                if (updateRule === 'overwrite') {
+                    // Overwrite: replace with new value
+                    if (extraction.value !== null && extraction.value !== undefined) {
+                        leaf.extracted = extraction.value;
+                        mergedCount++;
+                    }
+                } else if (updateRule === 'append') {
+                    // Append: add to existing array
+                    if (!Array.isArray(leaf.extracted)) {
+                        leaf.extracted = leaf.extracted ? [leaf.extracted] : [];
+                    }
+                    const extractedArray = leaf.extracted as unknown[];
+
+                    if (Array.isArray(extraction.value)) {
+                        extractedArray.push(...extraction.value);
+                        mergedCount += extraction.value.length;
+                    } else if (extraction.value !== null && extraction.value !== undefined) {
+                        extractedArray.push(extraction.value);
+                        mergedCount++;
+                    }
+                } else {
+                    // Default: treat like append
+                    if (!Array.isArray(leaf.extracted)) {
+                        leaf.extracted = leaf.extracted ? [leaf.extracted] : [];
+                    }
+                    const extractedArray = leaf.extracted as unknown[];
+
+                    if (Array.isArray(extraction.value)) {
+                        extractedArray.push(...extraction.value);
+                        mergedCount += extraction.value.length;
+                    } else if (extraction.value !== null && extraction.value !== undefined) {
+                        extractedArray.push(extraction.value);
+                        mergedCount++;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn(`Failed to merge extraction for ${pointer}:`, e);
+        }
+    }
+
+    return mergedCount;
 }
 
 // Build output document from template and extracted data
