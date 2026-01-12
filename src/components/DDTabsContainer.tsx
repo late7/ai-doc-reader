@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import CanonicalContentTab from './CanonicalContentTab';
 import FinalDDTab from './FinalDDTab';
+import MarketAnalysisTab from './MarketAnalysisTab';
 
 interface DDTabsContainerProps {
     workspaceSlug: string;
@@ -127,6 +128,15 @@ export default function DDTabsContainer({ workspaceSlug }: DDTabsContainerProps)
                 <CanonicalContentTab
                     workspaceSlug={workspaceSlug}
                     onStatusChange={(status: 'not_started' | 'in_progress' | 'completed') => updateTabStatus('canonical', status)}
+                />
+            );
+        }
+
+        if (tab.id === 'market') {
+            return (
+                <MarketAnalysisTab
+                    workspaceSlug={workspaceSlug}
+                    onStatusChange={(status: 'not_started' | 'in_progress' | 'completed') => updateTabStatus('market', status)}
                 />
             );
         }

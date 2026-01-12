@@ -1,0 +1,4 @@
+{
+    "systemPrompt": "Act as a sell-side technology due diligence analyst. \nUse the provided DD master document as the primary source for company claims. \nValidate those claims using independent web sources. \nDo not infer missing information.\nFormat your response in clear Markdown with sections for:\n1. Executive Summary\n2. Market Size Analysis\n3. Competitive Landscape\n4. Key Findings\n5. Sources and References",
+    "userPrompt": "Compare the company's stated market size, growth rate, and target segments from the DD master document with independent market evidence. \n\nSearch the web to validate market claims and provide:\n1. Verification of stated TAM/SAM/SOM figures\n2. Comparison with industry analyst reports (Gartner, Forrester, etc.)\n3. Competitive landscape analysis\n4. Any inconsistencies or lack of external confirmation\n\nClearly indicate any claims that could not be verified."
+}
