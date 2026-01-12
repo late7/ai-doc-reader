@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useRef, Suspense } from 'react';
-import Link from 'next/link';
 import WorkspaceSelector from '@/components/WorkspaceSelector';
 import DocumentUploader, { DocumentUploaderRef } from '@/components/DocumentUploader';
 import DDTabsContainer from '@/components/DDTabsContainer';
+import MainNavigation from '@/components/MainNavigation';
 import { usePersistentWorkspace } from '@/lib/usePersistentWorkspace';
 
 interface Workspace {
@@ -30,7 +30,7 @@ export default function DDTabsPage() {
     return (
         <div className="min-h-screen bg-gray-50">
             <header className="bg-white shadow-sm">
-                <div className="max-w-[1920px] mx-auto px-3 py-4 sm:px-4 lg:px-6">
+                <div className="w-[98%] max-w-[98%] mx-auto px-3 py-4 sm:px-4 lg:px-6">
                     <div className="flex justify-between items-center">
                         <div>
                             <h1 className="text-3xl font-bold tracking-tight text-gray-900">
@@ -40,25 +40,12 @@ export default function DDTabsPage() {
                                 AI-Powered Due Diligence Reporting & Analysis
                             </p>
                         </div>
-                        <div className="flex space-x-4 items-center">
-                            <Link
-                                href="/dashboard"
-                                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm font-medium transition-colors"
-                            >
-                                📊 Dashboard
-                            </Link>
-                            <Link
-                                href="/finance"
-                                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium transition-colors"
-                            >
-                                💰 Finance
-                            </Link>
-                        </div>
+                        <MainNavigation />
                     </div>
                 </div>
             </header>
 
-            <main className="max-w-[1920px] mx-auto px-3 py-4 sm:px-4 lg:px-6">
+            <main className="w-[98%] max-w-[98%] mx-auto px-3 py-4 sm:px-4 lg:px-6">
                 <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
                     {/* Sidebar */}
                     <div className="lg:col-span-1">

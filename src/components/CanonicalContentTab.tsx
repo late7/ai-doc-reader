@@ -18,6 +18,22 @@ interface MasterDocument {
     [key: string]: unknown;
 }
 
+interface FileInfo {
+    name: string;
+    originalName: string;
+    size: number;
+    modifiedTime: string;
+    processedTime: string | null;
+    isNew: boolean;
+}
+
+interface FileStatus {
+    files: FileInfo[];
+    newFilesCount: number;
+    processedFilesCount: number;
+    lastProcessedAt: string | null;
+}
+
 export default function CanonicalContentTab({ workspaceSlug, onStatusChange }: CanonicalContentTabProps) {
     const [compileStatus, setCompileStatus] = useState<CompileStatus>({
         status: 'idle',
@@ -27,11 +43,27 @@ export default function CanonicalContentTab({ workspaceSlug, onStatusChange }: C
     const [masterDoc, setMasterDoc] = useState<MasterDocument | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [fileStatus, setFileStatus] = useState<FileStatus | null>(null);
+    const [showFileList, setShowFileList] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
 
-    // Load master document on mount
+    // Load master document and file status on mount
     useEffect(() => {
         loadMasterDocument();
+        loadFileStatus();
     }, [workspaceSlug]);
+
+    const loadFileStatus = async () => {
+        try {
+            const response = await fetch(`/api/dd-process/file-status?workspace=${workspaceSlug}`);
+            if (response.ok) {
+                const data = await response.json();
+                setFileStatus(data);
+            }
+        } catch (error) {
+            console.error('Error loading file status:', error);
+        }
+    };
 
     const loadMasterDocument = async () => {
         setIsLoading(true);
@@ -67,6 +99,7 @@ export default function CanonicalContentTab({ workspaceSlug, onStatusChange }: C
                     if (data.status === 'completed') {
                         onStatusChange('completed');
                         loadMasterDocument();
+                        loadFileStatus(); // Refresh file status after processing
                     } else if (data.status === 'error') {
                         onStatusChange('not_started');
                     }
@@ -109,7 +142,7 @@ export default function CanonicalContentTab({ workspaceSlug, onStatusChange }: C
         }
     };
 
-    const startCloudCompilation = async () => {
+    const startCloudCompilation = async (processNewOnly: boolean = false) => {
         setCompileStatus({ status: 'running', progress: 'Starting cloud processing...', error: null });
         onStatusChange('in_progress');
 
@@ -119,7 +152,7 @@ export default function CanonicalContentTab({ workspaceSlug, onStatusChange }: C
             fetch('/api/dd-process/compile-cloud', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ workspaceSlug }),
+                body: JSON.stringify({ workspaceSlug, processNewOnly }),
             }).then(async (response) => {
                 // This callback happens when the full processing is done  
                 const data = await response.json();
@@ -171,6 +204,33 @@ export default function CanonicalContentTab({ workspaceSlug, onStatusChange }: C
         }
     };
 
+    const resetMasterDocument = async () => {
+        if (!confirm('This will delete the current master document and reset all file processing status. All files will need to be reprocessed. Continue?')) {
+            return;
+        }
+
+        setIsResetting(true);
+        try {
+            const response = await fetch(`/api/dd-process/file-status?workspace=${workspaceSlug}`, {
+                method: 'DELETE',
+            });
+
+            if (response.ok) {
+                setMasterDoc(null);
+                await loadFileStatus();
+                onStatusChange('not_started');
+            } else {
+                const data = await response.json();
+                alert(data.message || 'Failed to reset');
+            }
+        } catch (error) {
+            console.error('Error resetting master document:', error);
+            alert('Failed to reset master document');
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="p-6">
@@ -195,7 +255,7 @@ export default function CanonicalContentTab({ workspaceSlug, onStatusChange }: C
                 <div className="flex items-center space-x-2">
                     {/* Local Python Processing Button */}
                     <button
-                        onClick={startCompilation}
+                        onClick={() => startCompilation()}
                         disabled={compileStatus.status === 'running'}
                         title="Process documents locally using Python chunking"
                         className={`
@@ -224,11 +284,11 @@ export default function CanonicalContentTab({ workspaceSlug, onStatusChange }: C
                         )}
                     </button>
 
-                    {/* Cloud AI Processing Button */}
+                    {/* Cloud AI Processing Button - Process All */}
                     <button
-                        onClick={startCloudCompilation}
+                        onClick={() => startCloudCompilation(false)}
                         disabled={compileStatus.status === 'running'}
-                        title="Send files to OpenAI for cloud-based analysis"
+                        title="Process all documents with OpenAI"
                         className={`
                             px-4 py-2 rounded-lg font-medium text-sm transition-colors
                             ${compileStatus.status === 'running'
@@ -256,6 +316,116 @@ export default function CanonicalContentTab({ workspaceSlug, onStatusChange }: C
                     </button>
                 </div>
             </div>
+
+            {/* File Status Display */}
+            {fileStatus && (
+                <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border border-gray-200 p-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-6">
+                            {/* Unprocessed Files Badge */}
+                            <div className="flex items-center space-x-2">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${fileStatus.newFilesCount > 0 ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                    <svg className="mr-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    {fileStatus.newFilesCount} unprocessed
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                    {fileStatus.processedFilesCount > 0 && `${fileStatus.processedFilesCount} processed`}
+                                </span>
+                            </div>
+
+                            {/* Last Processed */}
+                            {fileStatus.lastProcessedAt && (
+                                <div className="text-xs text-gray-500">
+                                    Last processed: {new Date(fileStatus.lastProcessedAt).toLocaleString()}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                            {/* Process New Only Button - Only show if there are new files */}
+                            {fileStatus.newFilesCount > 0 && fileStatus.processedFilesCount > 0 && (
+                                <button
+                                    onClick={() => startCloudCompilation(true)}
+                                    disabled={compileStatus.status === 'running'}
+                                    title={`Process only ${fileStatus.newFilesCount} new file(s) and merge into existing document`}
+                                    className={`
+                                        px-3 py-1.5 rounded-lg font-medium text-xs transition-colors
+                                        ${compileStatus.status === 'running'
+                                            ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+                                            : 'bg-green-600 hover:bg-green-700 text-white'
+                                        }
+                                    `}
+                                >
+                                    <span className="flex items-center">
+                                        <svg className="mr-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                        </svg>
+                                        Process {fileStatus.newFilesCount} Unprocessed
+                                    </span>
+                                </button>
+                            )}
+
+                            {/* Toggle File List */}
+                            <button
+                                onClick={() => setShowFileList(!showFileList)}
+                                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                                {showFileList ? 'Hide files' : 'Show files'}
+                            </button>
+
+                            {/* Reset Button - Only show if there's a master document */}
+                            {(fileStatus.processedFilesCount > 0 || masterDoc) && (
+                                <button
+                                    onClick={resetMasterDocument}
+                                    disabled={isResetting || compileStatus.status === 'running'}
+                                    title="Delete master document and reset file tracking to reprocess all files"
+                                    className={`
+                                        text-xs font-medium transition-colors
+                                        ${isResetting || compileStatus.status === 'running'
+                                            ? 'text-gray-400 cursor-not-allowed'
+                                            : 'text-red-600 hover:text-red-800'
+                                        }
+                                    `}
+                                >
+                                    {isResetting ? 'Resetting...' : '🔄 Reset & Reprocess'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Expandable File List */}
+                    {showFileList && fileStatus.files.length > 0 && (
+                        <div className="mt-3 border-t border-gray-200 pt-3">
+                            <div className="max-h-48 overflow-y-auto space-y-1">
+                                {fileStatus.files.map((file) => (
+                                    <div
+                                        key={file.name}
+                                        className={`flex items-center justify-between text-xs px-2 py-1.5 rounded ${file.isNew ? 'bg-amber-50' : 'bg-white'
+                                            }`}
+                                    >
+                                        <div className="flex items-center space-x-2">
+                                            <span className={`inline-block w-2 h-2 rounded-full ${file.isNew ? 'bg-amber-500' : 'bg-gray-400'}`}></span>
+                                            <span className="font-medium text-gray-700 truncate max-w-[300px]" title={file.originalName}>
+                                                {file.originalName}
+                                            </span>
+                                        </div>
+                                        <span className="text-gray-500">
+                                            {file.isNew ? (
+                                                <span className="text-amber-600">Unprocessed</span>
+                                            ) : (
+                                                file.processedTime && new Date(file.processedTime).toLocaleDateString()
+                                            )}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Status Display */}
             {compileStatus.status === 'running' && (
@@ -286,7 +456,7 @@ export default function CanonicalContentTab({ workspaceSlug, onStatusChange }: C
                             </svg>
                             <h3 className="mt-4 text-sm font-medium text-gray-900">No processed document</h3>
                             <p className="mt-1 text-xs text-gray-500">
-                                Click "Process Documents" to extract information from workspace files.
+                                Click &quot;Process Documents&quot; to extract information from workspace files.
                             </p>
                         </div>
                     </div>

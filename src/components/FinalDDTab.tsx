@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -16,6 +16,9 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
     const [exporting, setExporting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isCached, setIsCached] = useState(false);
+    const [showExportMenu, setShowExportMenu] = useState(false);
+    const exportMenuRef = useRef<HTMLDivElement>(null);
+    const reportContentRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         loadReport(false);
@@ -154,6 +157,86 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
         document.body.removeChild(a);
     };
 
+    const exportToPDF = () => {
+        if (!reportContentRef.current) return;
+
+        setExporting(true);
+        setShowExportMenu(false);
+
+        // Create a new window for printing
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Please allow popups for PDF export');
+            setExporting(false);
+            return;
+        }
+
+        const fileName = `DD-Report-${workspaceSlug}-${new Date().toISOString().split('T')[0]}`;
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>${fileName}</title>
+                <style>
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+                        line-height: 1.6;
+                        color: #1a1a1a;
+                        max-width: 800px;
+                        margin: 0 auto;
+                        padding: 40px 20px;
+                    }
+                    h1 { font-size: 28px; margin-top: 32px; margin-bottom: 16px; color: #111; }
+                    h2 { font-size: 22px; margin-top: 28px; margin-bottom: 12px; color: #222; }
+                    h3 { font-size: 18px; margin-top: 24px; margin-bottom: 10px; color: #333; }
+                    h4 { font-size: 16px; margin-top: 20px; margin-bottom: 8px; color: #444; }
+                    p { margin: 12px 0; }
+                    ul, ol { margin: 12px 0; padding-left: 24px; }
+                    li { margin: 6px 0; }
+                    table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+                    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                    th { background-color: #f5f5f5; font-weight: 600; }
+                    blockquote { border-left: 4px solid #3b82f6; margin: 16px 0; padding: 12px 20px; background: #f0f7ff; }
+                    strong { font-weight: 600; }
+                    code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 14px; }
+                    @media print {
+                        body { padding: 0; }
+                        @page { margin: 2cm; }
+                    }
+                </style>
+            </head>
+            <body>
+                ${reportContentRef.current.innerHTML}
+            </body>
+            </html>
+        `);
+
+        printWindow.document.close();
+
+        // Wait for content to load, then trigger print
+        printWindow.onload = () => {
+            printWindow.print();
+            setExporting(false);
+        };
+
+        // Fallback if onload doesn't fire
+        setTimeout(() => {
+            setExporting(false);
+        }, 2000);
+    };
+
+    // Close export menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+                setShowExportMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     if (isLoading) {
         return (
             <div className="p-6">
@@ -223,42 +306,80 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
                         )}
                     </button>
 
-                    {/* Export Markdown Button */}
-                    <button
-                        onClick={exportToMarkdown}
-                        disabled={!report}
-                        className="flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 text-sm font-medium transition-colors"
-                        title="Export as Markdown"
-                    >
-                        <svg className="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        MD
-                    </button>
+                    {/* Export Dropdown */}
+                    <div className="relative" ref={exportMenuRef}>
+                        <button
+                            onClick={() => setShowExportMenu(!showExportMenu)}
+                            disabled={exporting || !report}
+                            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium transition-colors shadow-sm"
+                        >
+                            {exporting ? (
+                                <>
+                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Exporting...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    Export
+                                    <svg className="ml-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </>
+                            )}
+                        </button>
 
-                    {/* Export RTF Button */}
-                    <button
-                        onClick={exportToRTF}
-                        disabled={exporting || !report}
-                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium transition-colors shadow-sm"
-                    >
-                        {exporting ? (
-                            <>
-                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Exporting...
-                            </>
-                        ) : (
-                            <>
-                                <svg className="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
-                                </svg>
-                                Export RTF
-                            </>
+                        {/* Dropdown Menu */}
+                        {showExportMenu && (
+                            <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                                <button
+                                    onClick={() => { exportToPDF(); setShowExportMenu(false); }}
+                                    className="flex items-center w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                                >
+                                    <div className="flex-shrink-0 w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center mr-3">
+                                        <svg className="h-4 w-4 text-red-600" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-medium text-gray-900">PDF</div>
+                                        <div className="text-xs text-gray-500">Print-ready document</div>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => { exportToRTF(); setShowExportMenu(false); }}
+                                    className="flex items-center w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                                >
+                                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                                        <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-medium text-gray-900">RTF</div>
+                                        <div className="text-xs text-gray-500">Rich text for Word</div>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => { exportToMarkdown(); setShowExportMenu(false); }}
+                                    className="flex items-center w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                                >
+                                    <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                                        <span className="text-xs font-bold text-gray-600">MD</span>
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-medium text-gray-900">Markdown</div>
+                                        <div className="text-xs text-gray-500">Plain text with formatting</div>
+                                    </div>
+                                </button>
+                            </div>
                         )}
-                    </button>
+                    </div>
                 </div>
             </div>
 
@@ -277,7 +398,7 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
 
             {/* Document Content */}
             <div className="flex-1 overflow-auto bg-white rounded-lg border border-gray-200 shadow-sm">
-                <div className="max-w-4xl mx-auto p-8 prose prose-slate prose-headings:text-gray-900 prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-gray-700 prose-strong:text-gray-900 prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:text-gray-700 prose-li:text-gray-700 prose-table:border prose-th:bg-gray-100 prose-th:p-2 prose-td:p-2 prose-td:border max-w-none">
+                <div ref={reportContentRef} className="max-w-4xl mx-auto p-8 prose prose-slate prose-headings:text-gray-900 prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-gray-700 prose-strong:text-gray-900 prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:text-gray-700 prose-li:text-gray-700 prose-table:border prose-th:bg-gray-100 prose-th:p-2 prose-th:text-gray-900 prose-td:p-2 prose-td:border prose-td:text-gray-900 max-w-none">
                     {report ? (
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {report}

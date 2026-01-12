@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect, Suspense } from 'react';
-import Link from 'next/link';
+import { useState, useRef, Suspense } from 'react';
 import WorkspaceSelector from '@/components/WorkspaceSelector';
 import DocumentUploader, { DocumentUploaderRef } from '@/components/DocumentUploader';
 import QuestionAnalyzer, { QuestionAnalyzerRef } from '@/components/QuestionAnalyzer';
+import MainNavigation from '@/components/MainNavigation';
+import AdminSettingsPanel from '@/components/AdminSettingsPanel';
 import { usePersistentWorkspace } from '@/lib/usePersistentWorkspace';
 
 interface Workspace {
@@ -24,7 +25,6 @@ interface Workspace {
 export default function Dashboard() {
   const [selectedWorkspace, setSelectedWorkspace] = usePersistentWorkspace();
   const [refreshKey, setRefreshKey] = useState(0);
-  const [financeEnabled, setFinanceEnabled] = useState(true);
   const documentUploaderRef = useRef<DocumentUploaderRef>(null);
   const analyzerRef = useRef<QuestionAnalyzerRef>(null);
 
@@ -38,24 +38,6 @@ export default function Dashboard() {
     // Refresh any components that need to update after upload
     setRefreshKey(prev => prev + 1);
   };
-
-  // Load finance setting from system config
-  useEffect(() => {
-    const loadSystemConfig = async () => {
-      try {
-        const response = await fetch('/api/system');
-        if (response.ok) {
-          const config = await response.json();
-          setFinanceEnabled(config.financeEnabled ?? true);
-        }
-      } catch (error) {
-        console.error('Failed to load system config:', error);
-        // Default to true if config can't be loaded
-        setFinanceEnabled(true);
-      }
-    };
-    loadSystemConfig();
-  }, []);
 
   const refreshDocuments = () => {
     if (documentUploaderRef.current) {
@@ -76,7 +58,7 @@ export default function Dashboard() {
                 Analyze Company Documents with AI-powered insights from AnythingLLM
               </p>
             </div>
-            <div className="flex space-x-4 items-center">
+            <div className="flex items-center space-x-4">
               {selectedWorkspace && (
                 <button
                   onClick={() => analyzerRef.current?.exportReport()}
@@ -89,27 +71,13 @@ export default function Dashboard() {
                   Export Report
                 </button>
               )}
-              {financeEnabled && (
-                <Link
-                  href="/finance"
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium transition-colors"
-                >
-                  💰 Finance
-                </Link>
-              )}
-              <Link
-                href="/dd-report"
-                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium transition-colors"
-              >
-                📑 Due Diligence
-              </Link>
-              <Link
-                href="/admin"
-                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm font-medium transition-colors"
-              >
-                🔧 Admin Panel
-              </Link>
+              <MainNavigation />
             </div>
+          </div>
+
+          {/* Admin Settings - Questions & Categories Configuration */}
+          <div className="mt-6">
+            <AdminSettingsPanel />
           </div>
         </div>
       </header>

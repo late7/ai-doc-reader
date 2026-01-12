@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useRef, Suspense } from 'react';
-import Link from 'next/link';
 import WorkspaceSelector from '@/components/WorkspaceSelector';
 import DocumentUploader, { DocumentUploaderRef } from '@/components/DocumentUploader';
 import DDReportAnalyzer from '@/components/DDReportAnalyzer';
+import MainNavigation from '@/components/MainNavigation';
 import { usePersistentWorkspace } from '@/lib/usePersistentWorkspace';
 
 interface Workspace {
@@ -42,20 +42,7 @@ export default function DDReportPage() {
                                 AI-Powered Due Diligence Reporting & Analysis
                             </p>
                         </div>
-                        <div className="flex space-x-4 items-center">
-                            <Link
-                                href="/dashboard"
-                                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm font-medium transition-colors"
-                            >
-                                📊 Dashboard
-                            </Link>
-                            <Link
-                                href="/finance"
-                                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium transition-colors"
-                            >
-                                💰 Finance
-                            </Link>
-                        </div>
+                        <MainNavigation />
                     </div>
                 </div>
             </header>

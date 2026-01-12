@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useRef, Suspense } from 'react';
-import Link from 'next/link';
 import WorkspaceSelector from '@/components/WorkspaceSelector';
 import DocumentUploader, { DocumentUploaderRef } from '@/components/DocumentUploader';
 import FinanceAnalyzer from '@/components/FinanceAnalyzer';
 import OpenAIFinanceAnalyzer from '@/components/OpenAIFinanceAnalyzer';
 import AnalyzableFiguresManager from '@/components/AnalyzableFiguresManager';
+import MainNavigation from '@/components/MainNavigation';
 import { usePersistentWorkspace } from '@/lib/usePersistentWorkspace';
 
 interface Workspace {
@@ -58,11 +58,6 @@ export default function FinancePage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
         <div className="max-w-[1920px] mx-auto px-3 py-4 sm:px-4 lg:px-6">
-          {/* Analyzable Figures Configuration */}
-          <div className="mb-6">
-            <AnalyzableFiguresManager onFiguresChange={setAnalyzableFigures} />
-          </div>
-
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-gray-900">
@@ -71,9 +66,6 @@ export default function FinancePage() {
               <p className="mt-1 text-gray-600">
                 Financial analysis and reporting tools
               </p>
-
-
-
 
               {/* Analysis Mode Selection */}
               <div className="mt-4">
@@ -85,8 +77,8 @@ export default function FinancePage() {
                         type="button"
                         onClick={() => setAnalysisMode('local')}
                         className={`flex-1 py-2 px-4 text-sm font-medium rounded-full transition-all duration-200 ${analysisMode === 'local'
-                            ? 'bg-white text-blue-600 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-800'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
                           }`}
                       >
                         📁 Local Workspace
@@ -95,8 +87,8 @@ export default function FinancePage() {
                         type="button"
                         onClick={() => setAnalysisMode('openai')}
                         className={`flex-1 py-2 px-4 text-sm font-medium rounded-full transition-all duration-200 ${analysisMode === 'openai'
-                            ? 'bg-white text-blue-600 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-800'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
                           }`}
                       >
                         🤖 OpenAI Assistant
@@ -112,26 +104,12 @@ export default function FinancePage() {
                 </p>
               </div>
             </div>
-            <div className="flex space-x-4 items-center">
-              <Link
-                href="/dashboard"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
-              >
-                📊 Analysis
-              </Link>
-              <Link
-                href="/dd-report"
-                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium transition-colors"
-              >
-                📑 Due Diligence
-              </Link>
-              <Link
-                href="/admin"
-                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 text-sm font-medium transition-colors"
-              >
-                🔧 Admin Panel
-              </Link>
-            </div>
+            <MainNavigation />
+          </div>
+
+          {/* Analyzable Figures Configuration */}
+          <div className="mt-6">
+            <AnalyzableFiguresManager onFiguresChange={setAnalyzableFigures} />
           </div>
         </div>
       </header>

@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { workspaceSlug } = body;
+        const { workspaceSlug, processNewOnly } = body;
 
         if (!workspaceSlug) {
             return NextResponse.json(
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
         statusFile = path.join(processedDir, 'compile_status.json');
         const outputFile = path.join(processedDir, 'master_document.json');
         const templateFile = path.join(projectRoot, 'master-document-template.json');
+        const trackerFile = path.join(processedDir, 'processed_files.json');
 
         // Create processed directory if it doesn't exist
         await fs.mkdir(processedDir, { recursive: true });
@@ -124,7 +125,64 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        await updateStatus(statusFile, { progress: `Found ${validFiles.length} files. Starting analysis...` });
+        await updateStatus(statusFile, { progress: `Found ${validFiles.length} files. Checking for new files...` });
+
+        // Load file tracker to determine which files are new
+        interface ProcessedFileRecord {
+            name: string;
+            size: number;
+            modifiedTime: string;
+            processedTime: string;
+        }
+        interface ProcessedFilesTracker {
+            lastProcessedAt: string;
+            files: Record<string, ProcessedFileRecord>;
+        }
+
+        let tracker: ProcessedFilesTracker = { lastProcessedAt: '', files: {} };
+        try {
+            const trackerContent = await fs.readFile(trackerFile, 'utf-8');
+            tracker = JSON.parse(trackerContent);
+        } catch {
+            // No tracker file yet - all files are new
+        }
+
+        // Determine which files to process
+        let filesToProcess = validFiles;
+        if (processNewOnly && Object.keys(tracker.files).length > 0) {
+            const newFiles: typeof validFiles = [];
+            for (const file of validFiles) {
+                const stats = await fs.stat(file.path);
+                const modifiedTime = stats.mtime.toISOString();
+                const record = tracker.files[file.name];
+
+                // File is new if: not in tracker OR modified since processing
+                if (!record || record.modifiedTime !== modifiedTime || record.size !== stats.size) {
+                    newFiles.push(file);
+                }
+            }
+            filesToProcess = newFiles;
+
+            if (filesToProcess.length === 0) {
+                await updateStatus(statusFile, {
+                    status: 'completed',
+                    progress: 'No new files to process. All files are already processed.',
+                    error: null
+                });
+                return NextResponse.json({
+                    success: true,
+                    message: 'No new files to process',
+                    filesProcessed: 0,
+                    extractionsCount: 0,
+                });
+            }
+
+            await updateStatus(statusFile, {
+                progress: `Found ${filesToProcess.length} new files out of ${validFiles.length} total. Starting analysis...`
+            });
+        } else {
+            await updateStatus(statusFile, { progress: `Processing all ${validFiles.length} files...` });
+        }
 
         // Build the field catalog from template
         const fieldCatalog = collectFieldCatalog(template);
@@ -137,18 +195,31 @@ export async function POST(request: NextRequest) {
             apiKey: process.env.OPENAI_API_KEY,
         });
 
-        // Initialize output document from template
-        const outputDoc = JSON.parse(JSON.stringify(template));
-        initializeLeafNodes(outputDoc);
+        // Initialize output document - load existing if processing new only, otherwise start fresh
+        let outputDoc: Record<string, unknown>;
+        if (processNewOnly) {
+            try {
+                const existingDoc = await fs.readFile(outputFile, 'utf-8');
+                outputDoc = JSON.parse(existingDoc);
+                await updateStatus(statusFile, { progress: 'Loaded existing master document for incremental update...' });
+            } catch {
+                // No existing document - start from template
+                outputDoc = JSON.parse(JSON.stringify(template));
+                initializeLeafNodes(outputDoc);
+            }
+        } else {
+            outputDoc = JSON.parse(JSON.stringify(template));
+            initializeLeafNodes(outputDoc);
+        }
 
         // Track all source files processed
         const processedSourceFiles: string[] = [];
         let totalExtractionsCount = 0;
 
         // Process each file individually for better accuracy
-        for (let fileIndex = 0; fileIndex < validFiles.length; fileIndex++) {
-            const file = validFiles[fileIndex];
-            const fileProgress = `Processing file ${fileIndex + 1} of ${validFiles.length}: ${file.name}`;
+        for (let fileIndex = 0; fileIndex < filesToProcess.length; fileIndex++) {
+            const file = filesToProcess[fileIndex];
+            const fileProgress = `Processing file ${fileIndex + 1} of ${filesToProcess.length}: ${file.name}`;
             await updateStatus(statusFile, { progress: fileProgress });
 
             try {
@@ -267,6 +338,23 @@ export async function POST(request: NextRequest) {
         // Write the output
         await updateStatus(statusFile, { progress: 'Writing master document...' });
         await fs.writeFile(outputFile, JSON.stringify(outputDoc, null, 2), 'utf-8');
+
+        // Update file tracker with processed files
+        await updateStatus(statusFile, { progress: 'Updating file tracker...' });
+        const now = new Date().toISOString();
+        for (const file of filesToProcess) {
+            if (processedSourceFiles.includes(file.name)) {
+                const stats = await fs.stat(file.path);
+                tracker.files[file.name] = {
+                    name: file.name,
+                    size: stats.size,
+                    modifiedTime: stats.mtime.toISOString(),
+                    processedTime: now,
+                };
+            }
+        }
+        tracker.lastProcessedAt = now;
+        await fs.writeFile(trackerFile, JSON.stringify(tracker, null, 2), 'utf-8');
 
         await updateStatus(statusFile, {
             status: 'completed',
