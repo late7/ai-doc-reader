@@ -53,11 +53,97 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
   const [adHocInputs, setAdHocInputs] = useState<Record<string, string>>({});
   const [adHocLoading, setAdHocLoading] = useState<Set<string>>(new Set());
   const [runningAll, setRunningAll] = useState(false);
-  const [runAllProgress, setRunAllProgress] = useState<{current:number; total:number}>({current:0,total:0});
+  const [runAllProgress, setRunAllProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [hasSavedData, setHasSavedData] = useState(false);
 
   useEffect(() => {
     fetchQuestions();
   }, []);
+
+  // Load saved analysis when workspace changes
+  useEffect(() => {
+    if (workspaceSlug) {
+      loadSavedAnalysis();
+    }
+  }, [workspaceSlug]);
+
+  const loadSavedAnalysis = async () => {
+    try {
+      const response = await fetch(`/api/analysis-results?workspace=${workspaceSlug}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.exists && data.data) {
+          // Load company summary
+          if (data.data.companySummary) {
+            setCompanySummary(data.data.companySummary);
+          }
+
+          // Load question results
+          if (data.data.questions) {
+            const loadedResults = new Map<string, AnalysisResult>();
+            const loadedCollapsed = new Set<string>();
+
+            Object.entries(data.data.questions).forEach(([questionId, result]: [string, any]) => {
+              loadedResults.set(questionId, {
+                questionId: result.questionId,
+                result: result.result,
+                timestamp: new Date(result.timestamp),
+                additionalNotes: result.additionalNotes,
+                coverageScore: result.coverageScore,
+                sources: result.sources,
+              });
+              // Collapse sources by default
+              loadedCollapsed.add(questionId);
+            });
+
+            setResults(loadedResults);
+            setCollapsedSources(loadedCollapsed);
+          }
+
+          setHasSavedData(true);
+          console.log('Loaded saved analysis for workspace:', workspaceSlug);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading saved analysis:', error);
+    }
+  };
+
+  const saveAnalysis = async (newResults?: Map<string, AnalysisResult>, newSummary?: string) => {
+    try {
+      const resultsToSave = newResults || results;
+      const summaryToSave = newSummary !== undefined ? newSummary : companySummary;
+
+      // Convert Map to object for JSON serialization
+      const questionsObj: Record<string, any> = {};
+      resultsToSave.forEach((value, key) => {
+        const question = questions.find(q => q.id === key);
+        questionsObj[key] = {
+          questionId: value.questionId,
+          question: question?.question || '',
+          result: value.result,
+          timestamp: value.timestamp.toISOString(),
+          additionalNotes: value.additionalNotes,
+          coverageScore: value.coverageScore,
+          sources: value.sources,
+        };
+      });
+
+      await fetch('/api/analysis-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceSlug,
+          companySummary: summaryToSave,
+          questions: questionsObj,
+        }),
+      });
+
+      setHasSavedData(true);
+    } catch (error) {
+      console.error('Error saving analysis:', error);
+    }
+  };
 
   const fetchQuestions = async () => {
     try {
@@ -97,7 +183,7 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
       });
 
       console.log('API response status:', response.status);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('API error response:', errorText);
@@ -106,10 +192,13 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
 
       const data = await response.json();
       console.log('API response data:', data);
-      
+
       const summaryText = data.textResponse || data.response || 'No response generated';
       console.log('Setting summary:', summaryText);
       setCompanySummary(summaryText);
+
+      // Auto-save to file
+      await saveAnalysis(undefined, summaryText);
     } catch (error) {
       console.error('Error generating summary:', error);
       alert('Failed to generate Summary');
@@ -122,7 +211,7 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
     console.log('Run question clicked:', questionId);
     setLoading(prev => new Set(prev).add(questionId));
     setCoverageLoading(prev => new Set(prev).add(questionId));
-    
+
     try {
       const question = questions.find(q => q.id === questionId);
       if (!question) {
@@ -172,10 +261,10 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
 
       const data = await response.json();
       console.log('Question API response data:', data);
-      
+
       const resultText = data.textResponse || data.response || 'No response generated';
       console.log('Setting question result for', questionId, ':', resultText);
-      
+
       setResultsWithCollapsedSources(questionId, {
         questionId,
         result: resultText,
@@ -207,9 +296,9 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
     const tempId = `adhoc-${categoryName}-${Date.now()}`;
     // Optimistically add placeholder question to UI so result anchors
     setQuestions(prev => [...prev, { id: tempId, question: text, category: categoryName }]);
-  // Mark loading states so the new card shows progress indicator similar to predefined questions
-  setLoading(prev => new Set(prev).add(tempId));
-  setCoverageLoading(prev => new Set(prev).add(tempId));
+    // Mark loading states so the new card shows progress indicator similar to predefined questions
+    setLoading(prev => new Set(prev).add(tempId));
+    setCoverageLoading(prev => new Set(prev).add(tempId));
     setAdHocLoading(prev => new Set(prev).add(categoryName));
     try {
       // Coverage analysis first
@@ -251,8 +340,8 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
       setQuestions(prev => prev.filter(q => q.id !== tempId));
     } finally {
       setAdHocLoading(prev => { const s = new Set(prev); s.delete(categoryName); return s; });
-  setLoading(prev => { const s = new Set(prev); s.delete(tempId); return s; });
-  setCoverageLoading(prev => { const s = new Set(prev); s.delete(tempId); return s; });
+      setLoading(prev => { const s = new Set(prev); s.delete(tempId); return s; });
+      setCoverageLoading(prev => { const s = new Set(prev); s.delete(tempId); return s; });
     }
   };
 
@@ -270,7 +359,7 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
       // Create document content with question and notes only
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const fileName = `question-${questionId}-${timestamp}.txt`;
-      
+
       const documentContent = [
         `Question ID: ${questionId}`,
         `Question: ${question.question}`,
@@ -318,7 +407,7 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
       });
 
       alert(`Notes saved successfully and uploaded as ${fileName} to workspace!`);
-      
+
       // Refresh the document list to show the new notes file
       if (onDocumentsRefresh) {
         onDocumentsRefresh();
@@ -365,8 +454,8 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
         const lines: string[] = doc.splitTextToSize(text, maxWidth) as string[];
         lines.forEach((l: string) => {
           if (y > 780) { doc.addPage(); y = 50; }
-            doc.text(l, left, y);
-            y += lineHeight;
+          doc.text(l, left, y);
+          y += lineHeight;
         });
         y += 6;
       };
@@ -484,13 +573,13 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
     if (match && match[1]) {
       return match[1].trim();
     }
-    
+
     // Try alternative format with filename
     match = text.match(/<document_metadata>[\s\S]*?filename:\s*([^<\n,]+)[\s\S]*?<\/document_metadata>/);
     if (match && match[1]) {
       return match[1].trim();
     }
-    
+
     // Try to extract any document name from the metadata
     match = text.match(/<document_metadata>([\s\S]*?)<\/document_metadata>/);
     if (match && match[1]) {
@@ -501,13 +590,18 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
         return fileMatch[1].trim();
       }
     }
-    
+
     return null;
   };
 
   // Initialize sources as collapsed by default when results are set
   const setResultsWithCollapsedSources = (questionId: string, result: AnalysisResult) => {
-    setResults(prev => new Map(prev).set(questionId, result));
+    setResults(prev => {
+      const newResults = new Map(prev).set(questionId, result);
+      // Auto-save to file
+      saveAnalysis(newResults);
+      return newResults;
+    });
     // Collapse sources by default
     setCollapsedSources(prev => new Set(prev).add(questionId));
   };
@@ -515,23 +609,65 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
   const runAllQuestions = async () => {
     if (runningAll || questions.length === 0) return;
     setRunningAll(true);
-    setRunAllProgress({current:0,total:questions.length});
+    setRunAllProgress({ current: 0, total: questions.length });
     try {
-      for (let i=0; i<questions.length; i++) {
+      for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
-        setRunAllProgress({current:i,total:questions.length});
+        setRunAllProgress({ current: i, total: questions.length });
         // Await sequentially to reduce API load bursts
         // eslint-disable-next-line no-await-in-loop
         await runQuestion(q.id);
       }
-      setRunAllProgress({current:questions.length,total:questions.length});
+      setRunAllProgress({ current: questions.length, total: questions.length });
     } finally {
-      setTimeout(()=>setRunningAll(false), 300); // slight delay so user sees 100%
+      setTimeout(() => setRunningAll(false), 300); // slight delay so user sees 100%
+    }
+  };
+
+  // Run full analysis: summary + all questions
+  const runFullAnalysis = async () => {
+    if (runningAll || questions.length === 0) return;
+    setRunningAll(true);
+    setRunAllProgress({ current: 0, total: questions.length + 1 }); // +1 for summary
+
+    try {
+      // First generate summary
+      setRunAllProgress({ current: 0, total: questions.length + 1 });
+      await generateCompanySummary();
+
+      // Then run all questions
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        setRunAllProgress({ current: i + 1, total: questions.length + 1 });
+        await runQuestion(q.id);
+      }
+      setRunAllProgress({ current: questions.length + 1, total: questions.length + 1 });
+    } finally {
+      setTimeout(() => setRunningAll(false), 300);
+    }
+  };
+
+  const clearSavedAnalysis = async () => {
+    if (!confirm('This will clear all saved analysis results and company summary for this workspace. Continue?')) {
+      return;
+    }
+
+    try {
+      await fetch(`/api/analysis-results?workspace=${workspaceSlug}`, {
+        method: 'DELETE',
+      });
+
+      setResults(new Map());
+      setCompanySummary('');
+      setHasSavedData(false);
+    } catch (error) {
+      console.error('Error clearing analysis:', error);
     }
   };
 
   return (
     <div className="space-y-4">
+
       {/* Summary Section */}
       <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
         <div className="flex justify-between items-start mb-3">
@@ -557,12 +693,13 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
             )}
             <button
               onClick={generateCompanySummary}
-              disabled={summaryLoading}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                summaryLoading 
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              disabled={summaryLoading || runningAll}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${summaryLoading || runningAll
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : companySummary
+                  ? 'bg-gray-500 text-white hover:bg-gray-600'
                   : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
+                }`}
             >
               {summaryLoading ? (
                 <span className="flex items-center">
@@ -572,14 +709,29 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
                   </svg>
                   Generating...
                 </span>
-              ) : 'Generate Summary'}
+              ) : companySummary ? 'Regenerate Summary' : 'Generate Summary'}
+            </button>
+            <button
+              onClick={runFullAnalysis}
+              disabled={runningAll || questions.length === 0}
+              className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 ${runningAll || questions.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+            >
+              {runningAll ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4" />
+                    <path className="opacity-75" d="M4 12a8 8 0 018-8" strokeWidth="4" />
+                  </svg>
+                  Running {runAllProgress.current}/{runAllProgress.total}
+                </>
+              ) : 'Run Full Analysis'}
             </button>
           </div>
         </div>
         {companySummary ? (
           summaryCollapsed ? (
             <div className="bg-white p-3 rounded-md border border-gray-200 shadow-sm text-sm text-gray-800">
-              {companySummary.slice(0,200)}{companySummary.length > 200 && '…'}
+              {companySummary.slice(0, 200)}{companySummary.length > 200 && '…'}
             </div>
           ) : (
             <div className="bg-white p-3 rounded-md border border-gray-200 shadow-sm text-gray-800">
@@ -605,23 +757,6 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
       <div>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-800">Analysis Questions</h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={runAllQuestions}
-              disabled={runningAll || questions.length === 0}
-              className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 ${runningAll || questions.length===0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed':'bg-blue-600 text-white hover:bg-blue-700'}`}
-            >
-              {runningAll ? (
-                <>
-                  <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4" />
-                    <path className="opacity-75" d="M4 12a8 8 0 018-8" strokeWidth="4" />
-                  </svg>
-                  Running {runAllProgress.current + (runAllProgress.total>0?1:0)}/{runAllProgress.total}
-                </>
-              ) : 'Run All Questions'}
-            </button>
-          </div>
         </div>
 
         {/* Category Tabs */}
@@ -632,11 +767,10 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
                 <button
                   key={category}
                   onClick={() => setActiveTab(category)}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === category
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === category
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
                 >
                   {category}
                 </button>
@@ -655,11 +789,12 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
                     <button
                       onClick={() => runQuestion(question.id)}
                       disabled={loading.has(question.id)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-                        loading.has(question.id)
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium ${loading.has(question.id)
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : results.has(question.id)
+                          ? 'bg-gray-500 text-white hover:bg-gray-600'
                           : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
+                        }`}
                     >
                       {loading.has(question.id) ? (
                         <span className="flex items-center">
@@ -669,12 +804,12 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
                           </svg>
                           Running...
                         </span>
-                      ) : 'Run Analysis'}
+                      ) : results.has(question.id) ? 'Rerun Analysis' : 'Run Analysis'}
                     </button>
                   </div>
 
                 </div>
-                
+
                 {results.has(question.id) && (
                   <div className="px-4 py-3">
                     {/* Documentation Coverage - Moved above Analysis Result */}
@@ -757,9 +892,9 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
                         )}
                       </div>
                     )}
-                    
 
-                    
+
+
                     <div>
                       <label htmlFor={`notes-${question.id}`} className="block text-sm font-medium text-gray-700 mb-1">
                         <span className="font-semibold">Add your notes</span>
@@ -777,11 +912,10 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
                         <button
                           onClick={() => saveAdditionalNotes(question.id)}
                           disabled={!additionalNotes.get(question.id)}
-                          className={`px-3 py-1 rounded-md text-sm font-medium ${
-                            !additionalNotes.get(question.id)
-                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                              : 'bg-gray-600 text-white hover:bg-gray-700'
-                          }`}
+                          className={`px-3 py-1 rounded-md text-sm font-medium ${!additionalNotes.get(question.id)
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-gray-600 text-white hover:bg-gray-700'
+                            }`}
                         >
                           Save Notes
                         </button>
