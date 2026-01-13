@@ -25,18 +25,16 @@
       "instruction": "List source documents reviewed using exact file names."
     }
   },
-
-  "1_executive_summary": {
-    "1_1_investment_snapshot": {
-      "update_rule": "locked",
-      "instruction": "This section is intentionally locked and must not be modified by AI."
+  "1_promises_and_claims": {
+    "1_1_promises": {
+      "update_rule": "append",
+      "instruction": "Extract product and customer promises that are documented in the documents."
     },
-    "1_2_key_facts_at_a_glance": {
-      "update_rule": "locked",
-      "instruction": "This section is intentionally locked and must not be modified by AI."
+    "1_2_claims": {
+      "update_rule": "append",
+      "instruction": "Extract claims that are documented in the documents."
     }
   },
-
   "2_company_overview": {
     "2_1_company_description": {
       "update_rule": "append",
@@ -48,18 +46,21 @@
     },
     "2_3_solution_overview": {
       "update_rule": "append",
-      "instruction": "Describe the solution as documented, separating current functionality from planned items."
+      "instruction": "Extract the solution as documented, separating current functionality from planned items."
     },
-    "2_4_business_model": {
+    "2_4_customer_benefits": {
+      "update_rule": "append",
+      "instruction": "Extract the benefits that products or services offer to customers as documented."
+    },
+    "2_5_business_model": {
       "update_rule": "overwrite",
       "instruction": "Extract how the company generates revenue, including pricing models, if documented."
     }
   },
-
   "4_product_and_technology": {
     "4_1_product_description": {
       "update_rule": "append",
-      "instruction": "Describe products or modules offered by the company as documented."
+      "instruction": "Extract the description of products or modules offered by the company as documented."
     },
     "4_2_product_maturity_and_roadmap": {
       "update_rule": "overwrite",
@@ -74,18 +75,16 @@
       "instruction": "Extract stated technical dependencies, integrations, or constraints."
     }
   },
-
   "5_intellectual_property": {
     "5_1_patents_and_trademarks": {
       "update_rule": "overwrite",
-      "instruction": "List patents or trademarks only if explicitly documented."
+      "instruction": "List patents or trademarks only with short description (few words) if explicitly documented."
     },
     "5_2_ip_ownership_and_assignment": {
       "update_rule": "overwrite",
       "instruction": "Describe IP ownership or assignment arrangements if stated."
     }
   },
-
   "6_team_and_organization": {
     "6_1_founders_and_executive_team": {
       "update_rule": "overwrite",
@@ -104,7 +103,6 @@
       "instruction": "Extract information on founder commitment, vesting, or incentives if explicitly stated."
     }
   },
-
   "7_customers_and_traction": {
     "7_1_customer_segments": {
       "update_rule": "overwrite",
@@ -112,20 +110,29 @@
     },
     "7_2_named_customers_and_leads": {
       "update_rule": "append",
-      "instruction": "List named customers, pilots, or leads if explicitly mentioned."
+      "instruction": "List named customers, pilots, or leads if explicitly mentioned. Add type of customer (paid, pilot, lead) if explicitly stated."
     },
-    "7_3_traction_and_revenue_metrics": {
-      "update_rule": "append",
-      "instruction": "Extract revenue figures and traction metrics if documented."
-    },
-    "7_4_customer_validation_status": {
+    "7_3_customer_validation_status": {
       "update_rule": "append",
       "instruction": "Extract evidence of paid customers, pilots, contracts, or references if stated."
+    },
+    "7_4_traction_and_revenue_metrics": {
+      "update_rule": "append",
+      "instruction": "Extract revenue figures and traction metrics if documented."
     }
   },
-
-
-
+  "8_competition": {
+    "8_1_competitive_analysis": {
+      "update_rule": "append",
+      "instruction": "Extract competitive analysis if documented."
+    }
+  },
+  "9_regulatory_and_licensing": {
+    "9_1_regulatory_environment": {
+      "update_rule": "append",
+      "instruction": "Extract regulatory environment if documented."
+    }
+  },
   "10_funding_and_capital_structure": {
     "10_1_capitalization_table": {
       "update_rule": "overwrite",
@@ -144,7 +151,6 @@
       "instruction": "Extract stated plans for use of funds if documented."
     }
   },
-
   "12_milestones_and_value_creation": {
     "12_1_near_term_milestones": {
       "update_rule": "overwrite",
@@ -155,5 +161,4 @@
       "instruction": "Extract medium-term milestones if documented."
     }
   }
-
 }

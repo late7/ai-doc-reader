@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import CanonicalContentTab from './CanonicalContentTab';
 import FinalDDTab from './FinalDDTab';
 import MarketAnalysisTab from './MarketAnalysisTab';
+import FinanceDataTab from './FinanceDataTab';
 
 interface DDTabsContainerProps {
     workspaceSlug: string;
@@ -30,8 +31,8 @@ const TABS: TabConfig[] = [
     {
         id: 'finance',
         title: 'Finance Tab',
-        description: 'Data entered manually using Excel',
-        color: 'bg-gray-500',
+        description: 'Upload PDF to extract financial data with AI',
+        color: 'bg-green-500',
         statusKey: 'finance',
     },
     {
@@ -137,6 +138,15 @@ export default function DDTabsContainer({ workspaceSlug }: DDTabsContainerProps)
                 <MarketAnalysisTab
                     workspaceSlug={workspaceSlug}
                     onStatusChange={(status: 'not_started' | 'in_progress' | 'completed') => updateTabStatus('market', status)}
+                />
+            );
+        }
+
+        if (tab.id === 'finance') {
+            return (
+                <FinanceDataTab
+                    workspaceSlug={workspaceSlug}
+                    onStatusChange={(status: 'not_started' | 'in_progress' | 'completed') => updateTabStatus('finance', status)}
                 />
             );
         }
