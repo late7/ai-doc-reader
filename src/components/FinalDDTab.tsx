@@ -20,17 +20,59 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
     const exportMenuRef = useRef<HTMLDivElement>(null);
     const reportContentRef = useRef<HTMLDivElement>(null);
 
+    // Only check for existing report on mount, don't auto-generate
     useEffect(() => {
-        loadReport(false);
+        checkExistingReport();
     }, [workspaceSlug]);
 
-    const loadReport = async (regenerate: boolean) => {
-        if (regenerate) {
-            setIsGenerating(true);
-        } else {
-            setIsLoading(true);
-        }
+    // Check if a cached report exists without triggering generation
+    const checkExistingReport = async () => {
+        setIsLoading(true);
         setError(null);
+
+        try {
+            // First check if master document exists
+            const masterDocResponse = await fetch(`/api/dd-process/master-doc?workspace=${workspaceSlug}`);
+            if (!masterDocResponse.ok) {
+                setError('Master document not found. Process documents first.');
+                setReport(null);
+                onStatusChange('not_started');
+                setIsLoading(false);
+                return;
+            }
+
+            // Check for cached final report (don't generate)
+            const response = await fetch('/api/dd-process/generate-report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceSlug, regenerate: false, checkOnly: true }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.report) {
+                setReport(data.report);
+                setIsCached(true);
+                onStatusChange('completed');
+            } else {
+                // No cached report - that's OK, user can generate manually
+                setReport(null);
+                onStatusChange('not_started');
+            }
+        } catch (err) {
+            console.error('Error checking report:', err);
+            setError('Failed to connect to server');
+            onStatusChange('not_started');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Generate report (only called when user clicks button)
+    const generateReport = async (regenerate: boolean = false) => {
+        setIsGenerating(true);
+        setError(null);
+        onStatusChange('in_progress');
 
         try {
             const response = await fetch('/api/dd-process/generate-report', {
@@ -55,11 +97,10 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
                 onStatusChange('not_started');
             }
         } catch (err) {
-            console.error('Error loading report:', err);
+            console.error('Error generating report:', err);
             setError('Failed to connect to server');
             onStatusChange('not_started');
         } finally {
-            setIsLoading(false);
             setIsGenerating(false);
         }
     };
@@ -226,6 +267,49 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
         }, 2000);
     };
 
+    const exportToDocx = async () => {
+        if (!report) return;
+        setShowExportMenu(false);
+        setExporting(true);
+
+        try {
+            const response = await fetch('/api/dd-process/export-docx', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    markdown: report,
+                    filename: `DD-Report-${workspaceSlug}-${new Date().toISOString().split('T')[0]}`,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.docx) {
+                alert('Failed to generate DOCX: ' + (data.message || 'Unknown error'));
+                return;
+            }
+
+            // Convert base64 to blob and download
+            const binaryString = atob(data.docx);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = data.filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Error exporting to DOCX:', err);
+            alert('Failed to export to DOCX');
+        } finally {
+            setExporting(false);
+        }
+    };
+
     // Close export menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -250,19 +334,73 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
         );
     }
 
-    if (error && !report) {
+    // Error state - only show if there's an actual error (like missing master doc)
+    if (error && !report && error.includes('Master document')) {
         return (
             <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg border border-dashed border-gray-300 m-4">
                 <div className="text-center p-8">
                     <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <h3 className="mt-4 text-lg font-medium text-gray-900">No Final Document Available</h3>
+                    <h3 className="mt-4 text-lg font-medium text-gray-900">Master Document Required</h3>
                     <p className="mt-2 text-sm text-gray-500 max-w-sm">
                         {error}
                     </p>
                     <p className="mt-2 text-xs text-gray-400">
-                        Process documents in the "Canonical Document Raw Content" tab first to generate the master document.
+                        Process documents in the "Canonical Document Raw Content" tab first.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // No report yet - show generate button
+    if (!report && !isGenerating) {
+        return (
+            <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg border border-dashed border-gray-300 m-4">
+                <div className="text-center p-8">
+                    <svg className="mx-auto h-16 w-16 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <h3 className="mt-4 text-lg font-medium text-gray-900">Ready to Generate Report</h3>
+                    <p className="mt-2 text-sm text-gray-500 max-w-sm">
+                        The final DD report will be generated using AI based on the master document.
+                    </p>
+                    <button
+                        onClick={() => generateReport(false)}
+                        disabled={isGenerating}
+                        className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm"
+                    >
+                        <span className="flex items-center">
+                            <svg className="mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Generate Final Report
+                        </span>
+                    </button>
+                    <p className="mt-4 text-xs text-gray-400">
+                        This may take a few minutes depending on document size.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // Generating state
+    if (isGenerating && !report) {
+        return (
+            <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg border border-gray-200 m-4">
+                <div className="text-center p-8">
+                    <svg className="animate-spin mx-auto h-12 w-12 text-blue-600" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <h3 className="mt-4 text-lg font-medium text-gray-900">Generating Report...</h3>
+                    <p className="mt-2 text-sm text-gray-500">
+                        AI is analyzing the master document and creating the final report.
+                    </p>
+                    <p className="mt-1 text-xs text-gray-400">
+                        This may take a few minutes.
                     </p>
                 </div>
             </div>
@@ -283,7 +421,7 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
                 <div className="flex items-center space-x-2">
                     {/* Regenerate Button */}
                     <button
-                        onClick={() => loadReport(true)}
+                        onClick={() => generateReport(true)}
                         disabled={isGenerating}
                         className="flex items-center px-3 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
                         title="Regenerate report"
@@ -338,6 +476,20 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
                         {showExportMenu && (
                             <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                                 <button
+                                    onClick={exportToDocx}
+                                    className="flex items-center w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                                >
+                                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                                        <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-medium text-gray-900">DOCX (Word)</div>
+                                        <div className="text-xs text-gray-500">Best for editing</div>
+                                    </div>
+                                </button>
+                                <button
                                     onClick={() => { exportToPDF(); setShowExportMenu(false); }}
                                     className="flex items-center w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
                                 >
@@ -355,14 +507,14 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
                                     onClick={() => { exportToRTF(); setShowExportMenu(false); }}
                                     className="flex items-center w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
                                 >
-                                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                                        <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                                    <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                                        <svg className="h-4 w-4 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
                                         </svg>
                                     </div>
                                     <div>
                                         <div className="text-sm font-medium text-gray-900">RTF</div>
-                                        <div className="text-xs text-gray-500">Rich text for Word</div>
+                                        <div className="text-xs text-gray-500">Legacy Word format</div>
                                     </div>
                                 </button>
                                 <button
@@ -374,7 +526,7 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
                                     </div>
                                     <div>
                                         <div className="text-sm font-medium text-gray-900">Markdown</div>
-                                        <div className="text-xs text-gray-500">Plain text with formatting</div>
+                                        <div className="text-xs text-gray-500">Plain text format</div>
                                     </div>
                                 </button>
                             </div>

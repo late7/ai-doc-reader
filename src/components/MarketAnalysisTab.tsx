@@ -261,6 +261,46 @@ export default function MarketAnalysisTab({ workspaceSlug, onStatusChange }: Mar
         setShowExportMenu(false);
     };
 
+    const exportToDocx = async () => {
+        if (!result) return;
+        setShowExportMenu(false);
+
+        try {
+            const response = await fetch('/api/dd-process/export-docx', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    markdown: result.content,
+                    filename: `${workspaceSlug}-market-analysis`,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.docx) {
+                alert('Failed to generate DOCX: ' + (data.message || 'Unknown error'));
+                return;
+            }
+
+            // Convert base64 to blob and download
+            const binaryString = atob(data.docx);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = data.filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Error exporting to DOCX:', err);
+            alert('Failed to export to DOCX');
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="p-6">
@@ -360,8 +400,8 @@ export default function MarketAnalysisTab({ workspaceSlug, onStatusChange }: Mar
                                     onClick={savePrompts}
                                     disabled={promptsSaving || !promptsModified}
                                     className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${promptsSaving || !promptsModified
-                                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                        : 'bg-blue-600 text-white hover:bg-blue-700'
                                         }`}
                                 >
                                     {promptsSaving ? 'Saving...' : 'Save Prompts'}
@@ -449,6 +489,16 @@ export default function MarketAnalysisTab({ workspaceSlug, onStatusChange }: Mar
                                 <div className="absolute right-0 mt-2 w-56 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                                     <div className="py-1">
                                         <button
+                                            onClick={exportToDocx}
+                                            className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-start"
+                                        >
+                                            <span className="text-blue-600 mr-3">📘</span>
+                                            <div>
+                                                <div className="text-sm font-medium text-gray-700">DOCX (Word)</div>
+                                                <div className="text-xs text-gray-500">Best for editing</div>
+                                            </div>
+                                        </button>
+                                        <button
                                             onClick={exportToPDF}
                                             className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-start"
                                         >
@@ -464,8 +514,8 @@ export default function MarketAnalysisTab({ workspaceSlug, onStatusChange }: Mar
                                         >
                                             <span className="text-blue-500 mr-3">📝</span>
                                             <div>
-                                                <div className="text-sm font-medium text-gray-700">RTF (Word)</div>
-                                                <div className="text-xs text-gray-500">Editable in Word</div>
+                                                <div className="text-sm font-medium text-gray-700">RTF</div>
+                                                <div className="text-xs text-gray-500">Legacy Word format</div>
                                             </div>
                                         </button>
                                         <button

@@ -42,7 +42,7 @@ Return ONLY the formatted Markdown document, no additional commentary.`;
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { workspaceSlug, regenerate } = body;
+        const { workspaceSlug, regenerate, checkOnly } = body;
 
         if (!workspaceSlug) {
             return NextResponse.json(
@@ -51,19 +51,12 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (!process.env.OPENAI_API_KEY) {
-            return NextResponse.json(
-                { success: false, message: 'OpenAI API key is not configured' },
-                { status: 500 }
-            );
-        }
-
         const projectRoot = process.cwd();
         const processedDir = path.join(projectRoot, 'storage', workspaceSlug, 'processed');
         const masterDocPath = path.join(processedDir, 'master_document.json');
         const reportPath = path.join(processedDir, 'final_report.md');
 
-        // Check if we have a cached report and don't need to regenerate
+        // Check if we have a cached report
         if (!regenerate) {
             try {
                 const cachedReport = await fs.readFile(reportPath, 'utf-8');
@@ -79,8 +72,33 @@ export async function POST(request: NextRequest) {
                     });
                 }
             } catch {
-                // No cached report or error reading it, continue to generate
+                // No cached report
+                // If checkOnly mode, return without generating
+                if (checkOnly) {
+                    return NextResponse.json({
+                        success: true,
+                        report: null,
+                        cached: false,
+                    });
+                }
             }
+        }
+
+        // If checkOnly mode and we got here, no valid cache exists
+        if (checkOnly) {
+            return NextResponse.json({
+                success: true,
+                report: null,
+                cached: false,
+            });
+        }
+
+        // Check for API key only when actually generating
+        if (!process.env.OPENAI_API_KEY) {
+            return NextResponse.json(
+                { success: false, message: 'OpenAI API key is not configured' },
+                { status: 500 }
+            );
         }
 
         // Load master document

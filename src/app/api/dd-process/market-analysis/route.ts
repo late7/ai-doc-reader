@@ -143,11 +143,22 @@ Clearly indicate any claims that could not be verified.`;
         // Formatting instructions added automatically (user cannot modify these)
         const markdownFormatInstructions = `
 
-IMPORTANT: Format your response using proper Markdown syntax:
-- Use ## for main section headings (e.g., ## Executive Summary)
-- Use ### for subsections
-- Use **bold** for emphasis
-- Use bullet points with - or *`;
+IMPORTANT FORMATTING AND OUTPUT RULES:
+1. Format your response using proper Markdown syntax:
+   - Use ## for main section headings (e.g., ## Executive Summary)
+   - Use ### for subsections
+   - Use **bold** for emphasis
+   - Use bullet points with - or *
+
+2. DO NOT include any conversational elements at the end of your response such as:
+   - "If you want, I can..."
+   - "Would you like me to..."
+   - "Let me know if..."
+   - Offers to do additional work
+   - Follow-up questions
+   - Suggestions for next steps you could take
+
+3. End the document cleanly after the Sources and References section. This is a formal deliverable document, not a conversation.`;
 
         // Combine system prompt with formatting instructions
         const fullSystemPrompt = `${systemPrompt}${markdownFormatInstructions}`;
