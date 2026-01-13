@@ -244,7 +244,7 @@ const QuestionAnalyzer = forwardRef<QuestionAnalyzerRef, QuestionAnalyzerProps>(
 
       // Then run the main analysis
       console.log('Running main analysis...');
-      console.log('Sending request to /api/analyze with:', { workspaceSlug, questionId });
+      console.log('Sending request to /api/analyze with:', JSON.stringify({ workspaceSlug, questionId }));
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

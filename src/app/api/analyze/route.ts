@@ -19,10 +19,10 @@ interface CategoriesConfig {
 
 export async function POST(request: Request) {
   try {
-  const { workspaceSlug, questionId, customPrompt, adHocQuestion, categoryName } = await request.json();
-  logger.debug('Analyze API called:', { workspaceSlug, questionId, customPrompt, adHocQuestion, categoryName });
+    const { workspaceSlug, questionId, customPrompt, adHocQuestion, categoryName } = await request.json();
+    logger.debug('Analyze API called:', { workspaceSlug, questionId, customPrompt, adHocQuestion, categoryName });
     logger.debug('Questions config loaded:', questionsConfig.questions.length, 'questions');
-    
+
     const typedCategoriesConfig = categoriesConfig as CategoriesConfig;
     logger.debug('Categories config loaded:', typedCategoriesConfig.categories.length, 'categories');
 
@@ -34,18 +34,20 @@ export async function POST(request: Request) {
     }
 
     let prompt = '';
-    
-  if (questionId) {
+
+    if (questionId) {
       logger.debug('Processing question analysis for questionId:', questionId);
       const question = questionsConfig.questions.find(q => q.id === questionId);
+      // logger.info('Question found:', question);
+      // logger.info('Ad-hoc question:', adHocQuestion);
       if (!question) {
-        logger.error('Question not found:', questionId);
+        logger.info('Question not found:', questionId);
         return NextResponse.json(
           { error: 'Question not found' },
           { status: 404 }
         );
       }
-      
+
       // Find the category prompt for this question
       const category = typedCategoriesConfig.categories.find(c => c.categoryName === question.category);
       if (!category) {
@@ -55,9 +57,9 @@ export async function POST(request: Request) {
           { status: 404 }
         );
       }
-      
-  // Build prompt without deprecated prefix/suffix, using global summary style as base formatting
-  prompt = `${category.prompt} \n Focus specifically on this question in your answer: ${adHocQuestion} \n ${formattingPrompt.prompt}`;
+
+      // Build prompt without deprecated prefix/suffix, using global summary style as base formatting
+      prompt = `${category.prompt} \n ${formattingPrompt.prompt} \n \n Focus specifically on the following question in your answer: ${question.question}`;
       // logger.debug('Question found:', question.title);
       logger.debug('Using category prompt:', category.prompt);
       logger.debug('Focusing on question:', question.question);
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
           { status: 404 }
         );
       }
-      prompt = `${category.prompt} \n Focus specifically on this question in your answer: ${adHocQuestion} \n ${formattingPrompt.prompt}`;
+      prompt = `${category.prompt} \n ${formattingPrompt.prompt} \n \n Focus specifically on the following question in your answer: ${adHocQuestion}`;
       logger.debug('Using category prompt (ad-hoc):', category.prompt);
       logger.debug('Ad-hoc question:', adHocQuestion);
     } else if (customPrompt) {
@@ -80,14 +82,15 @@ export async function POST(request: Request) {
     } else {
       logger.debug('Processing summary (default)');
       // Default  summary
-  // Use summary from global prompts file if available
-  // @ts-ignore - backward compatibility if old structure remains in questionsConfig
-  const summary = globalPrompts?.prompts?.companySummary || questionsConfig?.prompts?.companySummary || '';
-  // For summary we intentionally do NOT apply formattingPrompt guidance (applies only to questions)
-  prompt = summary.trim();
+      // Use summary from global prompts file if available
+      // @ts-ignore - backward compatibility if old structure remains in questionsConfig
+      const summary = globalPrompts?.prompts?.companySummary || questionsConfig?.prompts?.companySummary || '';
+      // For summary we intentionally do NOT apply formattingPrompt guidance (applies only to questions)
+      prompt = summary.trim();
     }
 
     logger.debug('Sending prompt to AnythingLLM:', { prompt });
+    // logger.info('Sending prompt to AnythingLLM:', { prompt });
     const result = await anythingLLM.sendMessage(workspaceSlug, prompt);
     logger.debug('AnythingLLM result received:', result);
     return NextResponse.json(result);

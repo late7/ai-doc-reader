@@ -24,10 +24,9 @@ interface Workspace {
 interface WorkspaceSelectorProps {
   onWorkspaceSelect: (workspace: Workspace) => void;
   selectedWorkspace: Workspace | null;
-  confirmationMessage?: string;
 }
 
-export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace, confirmationMessage }: WorkspaceSelectorProps) {
+export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace }: WorkspaceSelectorProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -44,7 +43,7 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
 
   useEffect(() => {
     const workspaceParam = searchParams.get('workspace');
-    
+
     if (workspaces.length > 0) {
       // Case 1: URL has workspace param -> Sync to app state
       if (workspaceParam && workspaceParam !== lastProcessedParam.current) {
@@ -70,7 +69,7 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
     try {
       setLoading(true);
       setError(null);
-      
+
       // Add cache-busting parameters and headers
       const timestamp = Date.now();
       const response = await fetch(`/api/workspaces?_t=${timestamp}`, {
@@ -80,7 +79,7 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
           'Pragma': 'no-cache'
         }
       });
-      
+
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
           logger.warn('Workspace fetch unauthorized. Redirecting to login.');
@@ -90,14 +89,14 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to fetch workspaces: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (!data || !data.workspaces) {
         logger.error('Unexpected API response format:', data);
         throw new Error('Invalid response format from API');
       }
-      
+
       setWorkspaces(data.workspaces || []);
     } catch (err) {
       logger.error('Error fetching workspaces:', err);
@@ -124,13 +123,13 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
       }
 
       const data = await response.json();
-      
+
       // The response should contain a workspace object
       if (data.workspace) {
         setWorkspaces(prev => [...prev, data.workspace]);
         setNewWorkspaceName('');
         setShowCreateForm(false);
-        
+
         // Optionally auto-select the newly created workspace
         onWorkspaceSelect(data.workspace);
       } else {
@@ -145,7 +144,7 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
   if (loading) {
     return (
       <div className="mb-6">
-  <h2 className="text-xl font-semibold mb-3 text-gray-800">Workspaces</h2>
+        <h2 className="text-xl font-semibold mb-3 text-gray-800">Workspaces</h2>
         <div className="space-y-2">
           <div className="animate-pulse h-10 bg-gray-200 rounded-md"></div>
           <div className="animate-pulse h-10 bg-gray-200 rounded-md w-3/4"></div>
@@ -157,7 +156,7 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
   if (error) {
     return (
       <div className="mb-6">
-  <h2 className="text-xl font-semibold mb-3 text-gray-800">Workspaces</h2>
+        <h2 className="text-xl font-semibold mb-3 text-gray-800">Workspaces</h2>
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
           <p className="text-sm font-medium">Error: {error}</p>
           <p className="text-xs mt-1">
@@ -192,7 +191,7 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
   return (
     <div className="mb-6">
       <div className="flex justify-between items-center mb-4">
-  <h2 className="text-xl font-semibold text-gray-800">Workspaces</h2>
+        <h2 className="text-xl font-semibold text-gray-800">Workspaces</h2>
         <button
           onClick={() => setShowCreateForm(!showCreateForm)}
           className="text-sm text-blue-600 hover:text-blue-800"
@@ -246,22 +245,11 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
               const workspace = workspaces.find(w => w.slug === newSlug);
               if (!workspace) return; // invalid selection
 
-              // If there is an existing workspace selected, confirm reset
-              if (selectedWorkspace) {
-                const message = confirmationMessage || 'Changing workspace will reset the Company Summary and all Analysis Questions. Continue?';
-                const confirmed = window.confirm(message);
-                if (!confirmed) {
-                  // Revert selection by not calling onWorkspaceSelect (controlled value remains old slug)
-                  return;
-                }
-              }
-
-              onWorkspaceSelect(workspace);
-
-              // Update URL to reflect the selected workspace
+              // Reload the page with the new workspace URL
+              // Analysis data is persisted so no data is lost on reload
               const params = new URLSearchParams(searchParams.toString());
               params.set('workspace', workspace.slug);
-              router.push(`${pathname}?${params.toString()}`);
+              window.location.href = `${pathname}?${params.toString()}`;
             }}
             className="w-full p-2.5 bg-white border border-gray-400 text-gray-800 placeholder-gray-500 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
@@ -272,7 +260,7 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
               </option>
             ))}
           </select>
-          
+
           {selectedWorkspace && (
             <div className="mt-2 text-sm text-gray-600">
               Currently analyzing: <span className="font-medium">{selectedWorkspace.name}</span>
