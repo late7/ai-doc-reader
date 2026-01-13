@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, Suspense } from 'react';
+import { useState, useRef, useEffect, Suspense } from 'react';
 import WorkspaceSelector from '@/components/WorkspaceSelector';
 import DocumentUploader, { DocumentUploaderRef } from '@/components/DocumentUploader';
 import QuestionAnalyzer, { QuestionAnalyzerRef } from '@/components/QuestionAnalyzer';
@@ -23,10 +23,16 @@ interface Workspace {
 }
 
 export default function Dashboard() {
+  const [hasMounted, setHasMounted] = useState(false);
   const [selectedWorkspace, setSelectedWorkspace] = usePersistentWorkspace();
   const [refreshKey, setRefreshKey] = useState(0);
   const documentUploaderRef = useRef<DocumentUploaderRef>(null);
   const analyzerRef = useRef<QuestionAnalyzerRef>(null);
+
+  // Prevent hydration mismatch by waiting for client-side mount
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const handleWorkspaceSelect = (workspace: Workspace) => {
     setSelectedWorkspace(workspace);
@@ -59,7 +65,7 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="flex items-center space-x-4">
-              {selectedWorkspace && (
+              {hasMounted && selectedWorkspace && (
                 <button
                   onClick={() => analyzerRef.current?.exportReport()}
                   className="flex items-center px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 text-sm font-medium transition-colors disabled:bg-gray-300 disabled:text-gray-500"
@@ -94,7 +100,7 @@ export default function Dashboard() {
                 />
               </Suspense>
 
-              {selectedWorkspace && (
+              {hasMounted && selectedWorkspace && (
                 <DocumentUploader
                   key={selectedWorkspace.slug}
                   ref={documentUploaderRef}
@@ -107,7 +113,7 @@ export default function Dashboard() {
 
           {/* Main Content */}
           <div className="lg:col-span-4">
-            {selectedWorkspace ? (
+            {hasMounted && selectedWorkspace ? (
               <div className="bg-white rounded-lg shadow-md p-4">
                 <QuestionAnalyzer
                   key={refreshKey}

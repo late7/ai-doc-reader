@@ -195,6 +195,22 @@ export default function AdminSettingsPanel({ onFinanceToggle }: AdminSettingsPan
         await saveConfigs({ q: updated, silent: true });
     };
 
+    const updateQuestion = async (questionId: string, newText: string) => {
+        if (!config) return;
+        const trimmedText = newText.trim();
+        if (!trimmedText) return;
+
+        const updated = {
+            ...config,
+            questions: config.questions.map(q =>
+                q.id === questionId ? { ...q, question: trimmedText } : q
+            )
+        };
+        setConfig(updated);
+        setEditingQuestion(null);
+        await saveConfigs({ q: updated, silent: true });
+    };
+
     const addCategory = async () => {
         if (!categoriesConfig) return;
         const name = newCategory.categoryName?.trim();
@@ -265,10 +281,17 @@ export default function AdminSettingsPanel({ onFinanceToggle }: AdminSettingsPan
     return (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
             {/* Collapsible Header */}
-            <button
-                type="button"
+            <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setIsExpanded(!isExpanded);
+                    }
+                }}
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors cursor-pointer"
             >
                 <div className="flex items-center space-x-3">
                     <span className="text-lg">⚙️</span>
@@ -282,6 +305,7 @@ export default function AdminSettingsPanel({ onFinanceToggle }: AdminSettingsPan
                     <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
                         <span className="text-xs text-gray-600">Finance</span>
                         <button
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); handleFinanceToggle(!financeEnabled); }}
                             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${financeEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
                         >
@@ -297,7 +321,7 @@ export default function AdminSettingsPanel({ onFinanceToggle }: AdminSettingsPan
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                 </div>
-            </button>
+            </div>
 
             {/* Expanded Content */}
             {isExpanded && (
@@ -320,8 +344,8 @@ export default function AdminSettingsPanel({ onFinanceToggle }: AdminSettingsPan
                                         key={section}
                                         onClick={() => setActiveSection(section)}
                                         className={`px-3 py-1.5 text-sm rounded-t-lg transition-colors ${activeSection === section
-                                                ? 'bg-blue-100 text-blue-700 font-medium'
-                                                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                                            ? 'bg-blue-100 text-blue-700 font-medium'
+                                            : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
                                             }`}
                                     >
                                         {section === 'prompts' ? '📝 Global Prompts' : section === 'categories' ? '📁 Categories' : '❓ Questions'}
@@ -520,12 +544,76 @@ export default function AdminSettingsPanel({ onFinanceToggle }: AdminSettingsPan
                                         </div>
                                     </div>
 
+                                    {/* Warning about editing questions */}
+                                    {editingQuestion && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                                            <svg className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                            </svg>
+                                            <div>
+                                                <p className="text-sm font-medium text-amber-800">Warning: Editing questions may affect results</p>
+                                                <p className="text-xs text-amber-700 mt-0.5">Changing a question text makes previously stored analysis results outdated. You may need to re-run the analysis.</p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Questions List */}
                                     <div className="space-y-2 max-h-64 overflow-y-auto">
                                         {filteredQuestions.length > 0 ? filteredQuestions.map(q => (
-                                            <div key={q.id} className="flex items-center justify-between p-2 bg-white border rounded text-sm">
-                                                <span className="text-gray-800">{q.question}</span>
-                                                <button onClick={() => deleteQuestion(q.id)} className="text-red-600 hover:text-red-800 text-xs">Delete</button>
+                                            <div key={q.id} className="p-2 bg-white border rounded text-sm">
+                                                {editingQuestion?.id === q.id ? (
+                                                    /* Editing Mode */
+                                                    <div className="space-y-2">
+                                                        <input
+                                                            type="text"
+                                                            value={editingQuestion.question}
+                                                            onChange={e => setEditingQuestion({ ...editingQuestion, question: e.target.value })}
+                                                            className="w-full p-2 border rounded text-sm text-gray-800"
+                                                            autoFocus
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') {
+                                                                    updateQuestion(q.id, editingQuestion.question);
+                                                                } else if (e.key === 'Escape') {
+                                                                    setEditingQuestion(null);
+                                                                }
+                                                            }}
+                                                        />
+                                                        <div className="flex gap-2 justify-end">
+                                                            <button
+                                                                onClick={() => setEditingQuestion(null)}
+                                                                className="px-2 py-1 text-xs border rounded text-gray-600 hover:bg-gray-100"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                            <button
+                                                                onClick={() => updateQuestion(q.id, editingQuestion.question)}
+                                                                disabled={!editingQuestion.question.trim()}
+                                                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                                                            >
+                                                                Save
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    /* Display Mode */
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-gray-800">{q.question}</span>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => setEditingQuestion({ ...q })}
+                                                                className="text-blue-600 hover:text-blue-800 text-xs"
+                                                            >
+                                                                Edit
+                                                            </button>
+                                                            <button
+                                                                onClick={() => deleteQuestion(q.id)}
+                                                                className="text-red-600 hover:text-red-800 text-xs"
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )) : (
                                             <p className="text-gray-500 text-sm text-center py-4">No questions in this category.</p>
