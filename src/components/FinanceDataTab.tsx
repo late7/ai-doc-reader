@@ -367,12 +367,40 @@ export default function FinanceDataTab({ workspaceSlug, onStatusChange }: Financ
                             </svg>
                             <p className="text-gray-600 font-medium mb-1">Drop your finance PDF here</p>
                             <p className="text-sm text-gray-500 mb-4">or click to browse</p>
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                            >
-                                Select PDF File
-                            </button>
+                            <div className="flex items-center justify-center gap-3 mb-4">
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Select PDF File
+                                </button>
+                                <a
+                                    href="/Financials_Example_for_pdf_export.xlsx"
+                                    download="Financials_Example_for_pdf_export.xlsx"
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    Download Excel Template
+                                </a>
+                            </div>
+
+                            {/* Instruction text */}
+                            <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100 text-left max-w-md mx-auto">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                    <span className="text-blue-500">💡</span> How to use:
+                                </h4>
+                                <ol className="text-xs text-gray-600 space-y-1.5 list-decimal list-inside">
+                                    <li><strong>Download</strong> the Excel template using the green button</li>
+                                    <li><strong>Fill in</strong> your company's financial data</li>
+                                    <li><strong>Export as PDF</strong> (File → Export → PDF)</li>
+                                    <li><strong>Upload</strong> the PDF here for AI extraction</li>
+                                </ol>
+                            </div>
                         </>
                     )}
                 </div>
