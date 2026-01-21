@@ -412,10 +412,9 @@ export default function FinalDDTab({ workspaceSlug, onStatusChange }: FinalDDTab
             {/* Header with Controls */}
             <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
                 <div>
-                    <h3 className="text-lg font-semibold text-gray-800">📄 Final Due Diligence Report</h3>
+                    <h3 className="text-lg font-semibold text-gray-800">📄 Final DD Document</h3>
                     <p className="text-sm text-gray-600">
-                        Professional investor report generated using AI
-                        {isCached && <span className="ml-2 text-xs text-blue-500">(cached)</span>}
+                        Polished document generated using AI based on the master document
                     </p>
                 </div>
                 <div className="flex items-center space-x-2">

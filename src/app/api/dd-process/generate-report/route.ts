@@ -5,17 +5,19 @@ import fs from 'fs/promises';
 
 const SYSTEM_PROMPT = `You are an expert investment analyst creating a professional Due Diligence report for institutional investors (ICs), Family Offices (FOs), and Limited Partners (LPs).
 
-Your task is to transform raw DD research data into a polished, sell-side style Due Diligence report.
+Your task is to transform raw DD research data, financial analysis, and market analysis into a polished, comprehensive sell-side Due Diligence report.
 
 GUIDELINES:
-1. **Structure**: Follow a professional sell-side DD report format with clear sections
-2. **Tone**: Neutral, evidence-based, professional - not promotional
-3. **Clarity**: Remove duplication, noise, and raw research fragments
-4. **Audience**: Make it readable for sophisticated investors while preserving technical and regulatory depth
-5. **Organization**: Clearly separate:
+1. **Synthesis**: Integrate findings from the Core DD data (master document), the Financial Due Diligence analysis, and the Market Analysis.
+2. **Structure**: Follow a professional sell-side DD report format with clear sections.
+3. **Tone**: Neutral, evidence-based, professional - not promotional.
+4. **Clarity**: Remove duplication, noise, and raw research fragments.
+5. **Audience**: Make it readable for sophisticated investors while preserving technical and regulatory depth.
+6. **Organization**: Clearly separate:
    - **Facts** (verified information from documents)
-   - **Positioning** (market position, competitive landscape)
    - **Maturity** (development stage, traction, team experience)
+   - **Financial Positioning** (analysis of growth, burn, and unit economics)
+   - **Market Context** (competitive landscape and external market verification)
    - **Gaps** (missing information, risks, areas needing clarification)
 6. **Terminology**: Use normalized, industry-standard terminology
 7. **Formatting**: Use proper Markdown with:
@@ -26,7 +28,7 @@ GUIDELINES:
    - Blockquotes for notable quotes or findings
 
 STRUCTURE YOUR REPORT AS:
-1. **Executive Summary** - High-level overview, key investment thesis, main findings
+1. **Executive Summary** - High-level overview, key investment thesis, main findings synthesis
 2. **Company Overview** - Legal entity, jurisdiction, business description
 3. **Product & Technology** - Core offering, tech stack, IP, development stage
 4. **Market Opportunity** - TAM/SAM/SOM, competitive landscape, market dynamics
@@ -34,8 +36,8 @@ STRUCTURE YOUR REPORT AS:
 6. **Team & Governance** - Key personnel, board, advisors, organizational maturity
 7. **Financial Summary** - Key metrics, funding history, use of funds
 8. **Regulatory & Compliance** - Licenses, certifications, compliance status
-9. **Risk Assessment** - Key risks, mitigation strategies, gaps in information
-10. **Appendix** (if needed) - Additional details, source documents reviewed
+9. **Risk Assessment** - Synthesis of operational, financial, and market risks
+10. **Conclusion & DD Gaps** - Final synthesis and high-priority areas for further review
 
 Return ONLY the formatted Markdown document, no additional commentary.`;
 
@@ -113,6 +115,38 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Load Financial and Market Analysis if available
+        let financeAnalysis: string | null = null;
+        let marketAnalysis: string | null = null;
+        let rawFinanceData: any = null;
+
+        try {
+            const financePath = path.join(processedDir, 'finance_analysis.json');
+            const content = await fs.readFile(financePath, 'utf-8');
+            const data = JSON.parse(content);
+            financeAnalysis = data.content;
+        } catch {
+            console.log('Finance analysis not found, skipping.');
+        }
+
+        try {
+            const marketPath = path.join(processedDir, 'market_analysis.json');
+            const content = await fs.readFile(marketPath, 'utf-8');
+            const data = JSON.parse(content);
+            marketAnalysis = data.content;
+        } catch {
+            console.log('Market analysis not found, skipping.');
+        }
+
+        try {
+            const financeDataPath = path.join(processedDir, 'finance_data.json');
+            const content = await fs.readFile(financeDataPath, 'utf-8');
+            const data = JSON.parse(content);
+            rawFinanceData = data.financeData;
+        } catch {
+            console.log('Raw finance data not found, skipping.');
+        }
+
         // Initialize OpenAI client
         const openai = new OpenAI({
             apiKey: process.env.OPENAI_API_KEY,
@@ -121,6 +155,29 @@ export async function POST(request: NextRequest) {
         // Prepare the JSON for the prompt (clean up for readability)
         const cleanedJson = cleanMasterDocument(masterDocument);
         const jsonString = JSON.stringify(cleanedJson, null, 2);
+
+        // Construct the full user prompt
+        let fullUserPrompt = `Here is the raw DD research data from the master document (JSON format):\n\n${jsonString}`;
+
+        if (rawFinanceData) {
+            fullUserPrompt += `\n\n--- RAW FINANCIAL DATA (Extracted Tables) ---\n${JSON.stringify(rawFinanceData, null, 2)}`;
+        }
+
+        if (financeAnalysis) {
+            fullUserPrompt += `\n\n--- FINANCIAL DUE DILIGENCE ANALYSIS ---\n${financeAnalysis}`;
+        }
+
+        if (marketAnalysis) {
+            fullUserPrompt += `\n\n--- MARKET DUE DILIGENCE ANALYSIS ---\n${marketAnalysis}`;
+        }
+
+        fullUserPrompt += `\n\nPlease transform this synthesized information into a comprehensive, professional, readable Final Due Diligence report. 
+
+CROSS-REFERENCE Instructions:
+1. Use the RAW FINANCIAL DATA to verify and cite specific numbers in the financial sections.
+2. Integrate the MARKET DUE DILIGENCE ANALYSIS to provide external validation and competitive context.
+3. Synthesize the FINANCIAL DUE DILIGENCE ANALYSIS with the Master Document claims to highlight alignment or gaps.
+4. Ensure the final report is a cohesive narrative, not just a collection of separate analyses.`;
 
         // Call OpenAI Responses API
         const response = await openai.responses.create({
@@ -140,7 +197,7 @@ export async function POST(request: NextRequest) {
                     content: [
                         {
                             type: 'input_text',
-                            text: `Here is the raw DD research data in JSON format. Please transform this into a professional, readable Due Diligence report:\n\n${jsonString}`,
+                            text: fullUserPrompt,
                         },
                     ],
                 },

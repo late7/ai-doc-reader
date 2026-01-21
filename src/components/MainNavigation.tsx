@@ -12,7 +12,6 @@ interface NavItem {
 const navItems: NavItem[] = [
     { href: '/dashboard', label: 'Analysis', icon: '📊' },
     { href: '/dd-tabs', label: 'DD Tabs', icon: '📋' },
-    { href: '/dd-report', label: 'DD Report', icon: '📑' },
     { href: '/finance', label: 'Finance', icon: '💰' },
 ];
 
@@ -34,8 +33,8 @@ export default function MainNavigation() {
                     key={item.href}
                     href={item.href}
                     className={`flex items-center px-4 py-2 text-sm font-medium rounded-full transition-all ${isActive(item.href)
-                            ? 'bg-white text-blue-600 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
                         }`}
                 >
                     <span className="mr-1.5">{item.icon}</span>

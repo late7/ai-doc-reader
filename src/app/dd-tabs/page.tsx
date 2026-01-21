@@ -34,10 +34,10 @@ export default function DDTabsPage() {
                     <div className="flex justify-between items-center">
                         <div>
                             <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-                                Due Diligence Report
+                                DD Tabs
                             </h1>
                             <p className="mt-1 text-gray-600">
-                                AI-Powered Due Diligence Reporting & Analysis
+                                AI-Powered Due Diligence Process & Analysis
                             </p>
                         </div>
                         <MainNavigation />
