@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { workspaceSlug, financeData } = body;
+        const { workspaceSlug, financeData, sourceFiles } = body;
 
         if (!workspaceSlug) {
             return NextResponse.json(
@@ -188,7 +188,20 @@ ${masterDocContent}
 
 ## Financial Data (Extracted from Finance Documents):
 
-${JSON.stringify(financeData, null, 2)}`;
+${JSON.stringify(financeData, null, 2)}
+
+---
+
+## Source Documents Available:
+
+${sourceFiles ? `
+- Financial Model: ${sourceFiles.financialModel ? `${sourceFiles.financialModel.originalName} (uploaded ${new Date(sourceFiles.financialModel.uploadedAt).toLocaleDateString()})` : 'Not uploaded'}
+- P&L Statement: ${sourceFiles.pnl ? `${sourceFiles.pnl.originalName} (uploaded ${new Date(sourceFiles.pnl.uploadedAt).toLocaleDateString()})` : 'Not uploaded'}
+- Balance Sheet: ${sourceFiles.balanceSheet ? `${sourceFiles.balanceSheet.originalName} (uploaded ${new Date(sourceFiles.balanceSheet.uploadedAt).toLocaleDateString()})` : 'Not uploaded'}
+- Supportive Documents: ${sourceFiles.supportiveDocs ? `${sourceFiles.supportiveDocs.originalName} (uploaded ${new Date(sourceFiles.supportiveDocs.uploadedAt).toLocaleDateString()})` : 'Not uploaded'}
+` : 'No source documents information available'}
+
+Note: The above source documents have been uploaded for reference. The financial data section contains the extracted structured data from the primary finance documents. Supportive Documents provide additional context for verification.`;
 
         // Initialize OpenAI client
         const openai = new OpenAI({

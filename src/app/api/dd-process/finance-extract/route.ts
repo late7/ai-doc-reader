@@ -60,12 +60,24 @@ export interface FinanceData {
     }>;
 }
 
-const FINANCE_EXTRACTION_PROMPT = `Read the attached PDF and extract financial data into the following JSON structure. Respond with JSON only, no explanations or proposals.
+const FINANCE_EXTRACTION_PROMPT = `Read the attached document (PDF) and extract financial data into the following JSON structure. Respond with JSON only, no explanations or proposals.
+
+CRITICAL: DETECT UNIT MULTIPLIERS
+Financial documents often express values in abbreviated units. You MUST detect these and NORMALIZE all values to actual amounts:
+- "'000" or "in thousands" = multiply by 1,000
+- "'000,000" or "in millions" or "M" or "mn" = multiply by 1,000,000  
+- "'000,000,000" or "in billions" or "B" or "bn" = multiply by 1,000,000,000
+- "k" or "K" suffix = multiply by 1,000
+- Look for table headers, footnotes, or column labels like "€'000", "USD millions", "in thousands EUR", etc.
+
+Example: If document says "Revenue: 5,200" and header shows "'000 EUR", the actual revenue is 5,200,000 EUR.
 
 {
   "metadata": {
     "company_name": "string - name of the company",
     "currency": "string - ISO 4217 currency code (e.g., EUR, USD)",
+    "unit_multiplier": "number - detected multiplier (1 = actual values, 1000 = thousands, 1000000 = millions)",
+    "unit_multiplier_source": "string - where the multiplier was detected (e.g., 'header: in thousands EUR', 'footnote: figures in millions')",
     "period_granularity": "monthly|quarterly|yearly",
     "start_period": "string - first period in the data (e.g., 2024-Q1, 2024-01)",
     "end_period": "string - last period in the data",
@@ -77,22 +89,22 @@ const FINANCE_EXTRACTION_PROMPT = `Read the attached PDF and extract financial d
   "pnl": [
     {
       "period": "string - period identifier",
-      "revenue": "number|null",
-      "cogs": "number|null - cost of goods sold",
-      "gross_profit": "number|null",
-      "opex": "number|null - operating expenses",
-      "ebitda": "number|null",
+      "revenue": "number|null - ACTUAL value after applying multiplier",
+      "cogs": "number|null - cost of goods sold, ACTUAL value",
+      "gross_profit": "number|null - ACTUAL value",
+      "opex": "number|null - operating expenses, ACTUAL value",
+      "ebitda": "number|null - ACTUAL value",
       "notes": "string - optional notes for this period"
     }
   ],
   "cashflow": [
     {
       "period": "string",
-      "opening_cash": "number|null",
-      "operating_cashflow": "number|null",
-      "investing_cashflow": "number|null",
-      "financing_cashflow": "number|null",
-      "closing_cash": "number|null",
+      "opening_cash": "number|null - ACTUAL value",
+      "operating_cashflow": "number|null - ACTUAL value",
+      "investing_cashflow": "number|null - ACTUAL value",
+      "financing_cashflow": "number|null - ACTUAL value",
+      "closing_cash": "number|null - ACTUAL value",
       "notes": "string - optional"
     }
   ],
@@ -102,7 +114,7 @@ const FINANCE_EXTRACTION_PROMPT = `Read the attached PDF and extract financial d
       "total_fte": "number",
       "sales_fte": "number|null",
       "tech_fte": "number|null",
-      "avg_cost_per_fte": "number|null"
+      "avg_cost_per_fte": "number|null - ACTUAL value after applying multiplier"
     }
   ],
   "revenue_drivers": [
@@ -110,8 +122,8 @@ const FINANCE_EXTRACTION_PROMPT = `Read the attached PDF and extract financial d
       "period": "string",
       "customers": "number|null - total customers",
       "new_customers": "number|null",
-      "arpa": "number|null - average revenue per account",
-      "churn_pct": "number|null - churn percentage"
+      "arpa": "number|null - average revenue per account, ACTUAL value",
+      "churn_pct": "number|null - churn percentage (keep as percentage, do not multiply)"
     }
   ],
   "assumptions": [
@@ -131,12 +143,17 @@ const FINANCE_EXTRACTION_PROMPT = `Read the attached PDF and extract financial d
 }
 
 IMPORTANT RULES:
-1. Extract ONLY data that is explicitly present in the PDF
+1. Extract ONLY data that is explicitly present in the document
 2. Use null for any values not found in the document
-3. Include validation_notes for any data quality issues or missing required data
-4. Ensure all numbers are numeric (not strings)
-5. Include optional arrays only if relevant data is found
-6. Return valid JSON that exactly matches this schema`;
+3. ALWAYS check for unit multipliers in headers, footers, column labels, and footnotes
+4. ALL monetary values must be normalized to actual amounts (apply the multiplier)
+5. Percentages should remain as percentages (do NOT multiply)
+6. Include validation_notes for any data quality issues, missing data, or if multiplier was ambiguous
+7. If no multiplier is found, assume values are actual (unit_multiplier = 1)
+8. Ensure all numbers are numeric (not strings)
+9. Include optional arrays only if relevant data is found
+10. Return valid JSON that exactly matches this schema`;
+
 
 export async function POST(request: Request) {
     try {
@@ -159,23 +176,31 @@ export async function POST(request: Request) {
             );
         }
 
-        if (file.type !== 'application/pdf') {
+        // Only accept PDF files
+        const allowedTypes = ['application/pdf'];
+        const fileExtension = file.name.toLowerCase().split('.').pop();
+        const isAllowedExtension = fileExtension === 'pdf';
+
+        if (!allowedTypes.includes(file.type) && !isAllowedExtension) {
             return NextResponse.json(
                 { error: 'Invalid file type. Please upload a PDF file.' },
                 { status: 400 }
             );
         }
 
-        logger.debug(`Processing finance PDF: ${file.name} (${file.size} bytes)`);
+        logger.debug(`Processing finance file: ${file.name} (${file.size} bytes, type: ${file.type})`);
 
-        // Convert file to base64
+        // Convert file to base64 with correct MIME type
         const arrayBuffer = await file.arrayBuffer();
         const base64Content = Buffer.from(arrayBuffer).toString('base64');
+
+        // Determine the correct MIME type
+        const mimeType = file.type || 'application/pdf';
 
         const encodedFile = {
             type: 'input_file' as const,
             filename: file.name,
-            file_data: `data:application/pdf;base64,${base64Content}`
+            file_data: `data:${mimeType};base64,${base64Content}`
         };
 
         logger.debug('Calling OpenAI GPT-5.2 for finance data extraction');

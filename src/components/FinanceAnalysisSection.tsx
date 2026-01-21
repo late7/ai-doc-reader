@@ -4,9 +4,23 @@ import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+interface SourceFileInfo {
+    filename: string;
+    originalName: string;
+    size: number;
+    uploadedAt: string;
+    type: 'financial-model' | 'pnl' | 'balance-sheet' | 'supportive-docs';
+}
+
 interface FinanceAnalysisSectionProps {
     workspaceSlug: string;
     financeData: any;
+    sourceFiles?: {
+        financialModel?: SourceFileInfo;
+        pnl?: SourceFileInfo;
+        balanceSheet?: SourceFileInfo;
+        supportiveDocs?: SourceFileInfo;
+    };
 }
 
 interface AnalysisResult {
@@ -16,7 +30,7 @@ interface AnalysisResult {
     reasoningSummary?: string;
 }
 
-export default function FinanceAnalysisSection({ workspaceSlug, financeData }: FinanceAnalysisSectionProps) {
+export default function FinanceAnalysisSection({ workspaceSlug, financeData, sourceFiles }: FinanceAnalysisSectionProps) {
     const [isRunning, setIsRunning] = useState(false);
     const [result, setResult] = useState<AnalysisResult | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -122,7 +136,7 @@ export default function FinanceAnalysisSection({ workspaceSlug, financeData }: F
             const response = await fetch('/api/dd-process/finance-analysis', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ workspaceSlug, financeData }),
+                body: JSON.stringify({ workspaceSlug, financeData, sourceFiles }),
             });
 
             const data = await response.json();
