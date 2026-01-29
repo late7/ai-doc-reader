@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const PUBLIC_PATHS = [
   '/api/login',
   '/api/logout',
+  '/api/chatapi', // Uses Basic Auth instead of session
   '/login',
   '/_next',
   '/favicon',
