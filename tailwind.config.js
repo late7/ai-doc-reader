@@ -30,7 +30,22 @@ module.exports = {
         DEFAULT: {
           css: {
             maxWidth: '100%',
-            color: 'var(--card-foreground)',
+            color: '#1f2937',
+            'h1, h2, h3, h4, h5, h6': {
+              color: '#111827',
+            },
+            strong: {
+              color: '#111827',
+            },
+            'li::marker': {
+              color: '#4b5563',
+            },
+            'ol > li, ul > li': {
+              color: '#1f2937',
+            },
+            blockquote: {
+              color: '#374151',
+            },
             a: {
               color: 'var(--primary)',
               '&:hover': {

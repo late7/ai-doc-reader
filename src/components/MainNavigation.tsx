@@ -12,6 +12,7 @@ interface NavItem {
 const navItems: NavItem[] = [
     { href: '/dashboard', label: 'Analysis', icon: '📊' },
     { href: '/dd-tabs', label: 'DD Tabs', icon: '📋' },
+    { href: '/fact-sheet', label: 'Fact Sheet', icon: '📄' },
     { href: '/finance', label: 'Finance', icon: '💰' },
 ];
 
