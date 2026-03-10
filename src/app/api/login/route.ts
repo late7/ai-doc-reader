@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     // Set HttpOnly cookie
     const res = NextResponse.json({ ok: true });
-    res.cookies.set('auth_token', token, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 8 });
+    res.cookies.set('auth_token', token, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 20 });
     return res;
   } catch (e) {
     console.error('Login error', e);

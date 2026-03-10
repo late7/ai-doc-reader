@@ -220,7 +220,7 @@ ALWAYS return at least 5 assumptions - every company has implicit or explicit as
         console.log(`[finance-estimate] Context length: ${contextString.length} chars`);
 
         const response = await openai.responses.create({
-            model: process.env.OPENAI_MODEL || 'gpt-4.1',
+            model: process.env.OPENAI_MODEL || 'gpt-5.2',
             input: [
                 {
                     role: 'system',

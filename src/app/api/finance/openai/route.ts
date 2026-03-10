@@ -124,7 +124,7 @@ export async function POST(request: Request) {
     logger.debug(`Using model: ${process.env.OPENAI_MODEL || 'gpt-5-mini'}`);
 
     const response = await openai.responses.create({
-      model: process.env.OPENAI_MODEL || 'gpt-5-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-5.2',
       input: [
         {
           role: 'developer',

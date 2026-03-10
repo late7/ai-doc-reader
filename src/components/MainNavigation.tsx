@@ -10,9 +10,10 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+    { href: '/fact-sheet', label: 'Fact Sheet', icon: '📄' },
     { href: '/dashboard', label: 'Analysis', icon: '📊' },
-    { href: '/dd-tabs', label: 'DD Tabs', icon: '📋' },
-    { href: '/finance', label: 'Finance', icon: '💰' },
+    { href: '/finance', label: 'Finance Tool', icon: '💰' },
+    { href: '/dd-tabs', label: 'DD View', icon: '📋' },
 ];
 
 export default function MainNavigation() {
@@ -21,7 +22,7 @@ export default function MainNavigation() {
     const isActive = (href: string) => {
         // Handle exact match or path starting with href
         if (href === '/dashboard') {
-            return pathname === '/dashboard' || pathname === '/';
+            return pathname === '/dashboard';
         }
         return pathname?.startsWith(href);
     };
