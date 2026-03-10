@@ -597,7 +597,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                                             {SECTIONS[globalProcessing.currentSectionIndex]?.title}
                                         </>
                                     ) : (
-                                        <>📋 Investment Memo</>
+                                        <>📋 Internal Investment Memo</>
                                     )}
                                 </span>
                                 <span className="text-xs text-gray-600">
@@ -627,7 +627,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                             return (
                                 <span className="font-medium">
                                     {processedCount} <span className="text-gray-600">({totalCount})</span>{' '}
-                                    <span className="text-gray-700">Docs Processed</span>
+                                    <span className="text-gray-700">Data Points Processed</span>
                                 </span>
                             );
                         })()}
@@ -787,7 +787,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                                 {isMemoExpanded ? (
                                     <div className="flex-1 ml-3 text-left">
                                         <h3 className="font-semibold text-gray-800 text-sm">
-                                            📋 Investment Memo
+                                            📋 Internal Investment Memo
                                         </h3>
                                         {caseSummary?.overallScore != null && (
                                             <span className="text-xs text-gray-600">
@@ -807,7 +807,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                                             className="text-xs font-medium text-gray-700 whitespace-nowrap"
                                             style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
                                         >
-                                            Investment Memo
+                                            Internal Investment Memo
                                         </span>
                                     </div>
                                 )}
