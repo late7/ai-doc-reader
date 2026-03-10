@@ -311,6 +311,9 @@ export default function FinanceDataTab({ workspaceSlug, onStatusChange }: Financ
                     setFinanceData(data.data.financeData);
                     setUploadedFile(data.data.filename || 'Loaded from storage');
                     onStatusChange?.('completed');
+                    // Collapse the Source Documents & Financial Data section when data exists
+                    // This helps users see the analysis results right away
+                    setIsDataSectionCollapsed(true);
                 }
             }
         } catch (err) {
