@@ -87,6 +87,16 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // Load web analysis for business-potential-market if available
+        let webAnalysis: Record<string, unknown> | null = null;
+        try {
+            const webAnalysisFile = path.join(processedDir, 'factsheet_web_analysis_business-potential-market.json');
+            const webContent = await fs.readFile(webAnalysisFile, 'utf-8');
+            webAnalysis = JSON.parse(webContent);
+        } catch {
+            // No web analysis available - that's fine
+        }
+
         if (!hasAnyData) {
             return NextResponse.json({ error: 'No section data available. Process documents first.' }, { status: 400 });
         }
@@ -94,7 +104,7 @@ export async function POST(request: NextRequest) {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
         const response = await openai.responses.create({
-            model: process.env.OPENAI_MODEL || 'gpt-4.1',
+            model: process.env.OPENAI_MODEL || 'gpt-5.4',
             input: [
                 {
                     role: 'developer',
@@ -107,7 +117,11 @@ export async function POST(request: NextRequest) {
                     role: 'user',
                     content: [{
                         type: 'input_text',
-                        text: `Here are the four Fact Sheet canonical documents:\n\n${JSON.stringify(canonicals, null, 2)}`,
+                        text: `Here are the four Fact Sheet canonical documents:\n\n${JSON.stringify(canonicals, null, 2)}${
+                            webAnalysis
+                                ? `\n\nAdditionally, here is the Web Analysis for Business Potential and Market section (based on web search for external evidence, competitor data, and market validation):\n\n${JSON.stringify(webAnalysis, null, 2)}`
+                                : ''
+                        }`,
                     }],
                 },
             ],

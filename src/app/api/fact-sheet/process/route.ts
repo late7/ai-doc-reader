@@ -137,6 +137,18 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, message: 'No valid documents found' }, { status: 400 });
         }
 
+        // Build UUID filename → original name lookup from .meta.json files
+        const nameMap: Record<string, string> = {};
+        for (const file of validFiles) {
+            try {
+                const metaPath = path.join(storageDir, file.name.replace(file.ext, '.meta.json'));
+                const metaContent = await fs.readFile(metaPath, 'utf-8');
+                const meta = JSON.parse(metaContent);
+                if (meta.originalName) nameMap[file.name] = meta.originalName;
+            } catch { /* no meta file */ }
+        }
+        const displayName = (fileName: string) => nameMap[fileName] || fileName;
+
         // Load tracker for incremental processing
         interface TrackerRecord { name: string; size: number; modifiedTime: string; processedTime: string; }
         interface Tracker { lastProcessedAt: string; files: Record<string, TrackerRecord>; }
@@ -193,7 +205,7 @@ export async function POST(request: NextRequest) {
         // Process each file
         for (let i = 0; i < filesToProcess.length; i++) {
             const file = filesToProcess[i];
-            await updateStatus(statusFile, { progress: `Analyzing ${file.name} (${i + 1}/${filesToProcess.length})...` });
+            await updateStatus(statusFile, { progress: `Analyzing ${displayName(file.name)} (${i + 1}/${filesToProcess.length})...` });
 
             try {
                 const fileBuffer = await fs.readFile(file.path);
@@ -201,7 +213,7 @@ export async function POST(request: NextRequest) {
                 const mimeType = ALLOWED_MIME_TYPES[file.ext] || 'application/octet-stream';
 
                 const response = await openai.responses.create({
-                    model: process.env.OPENAI_MODEL || 'gpt-4.1',
+                    model: process.env.OPENAI_MODEL || 'gpt-5.4',
                     input: [
                         {
                             role: 'developer',
@@ -262,7 +274,7 @@ export async function POST(request: NextRequest) {
                 }
             } catch (fileError) {
                 console.error(`Error processing file ${file.name}:`, fileError);
-                await updateStatus(statusFile, { progress: `Error processing ${file.name}, continuing...` });
+                await updateStatus(statusFile, { progress: `Error processing ${displayName(file.name)}, continuing...` });
             }
 
             if (i < filesToProcess.length - 1) {
@@ -280,7 +292,7 @@ export async function POST(request: NextRequest) {
             await updateStatus(statusFile, { progress: 'Generating summary...' });
             try {
                 const summaryResponse = await openai.responses.create({
-                    model: process.env.OPENAI_MODEL || 'gpt-4.1',
+                    model: process.env.OPENAI_MODEL || 'gpt-5.4',
                     input: [
                         {
                             role: 'developer',

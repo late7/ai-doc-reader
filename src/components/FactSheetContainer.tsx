@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import FactSheetTab from './FactSheetTab';
 import FactSheetSummaryPanel from './FactSheetSummaryPanel';
 
@@ -124,11 +124,29 @@ function getScoreBarColor(score: number | null): string {
 }
 
 export default function FactSheetContainer({ workspaceSlug }: FactSheetContainerProps) {
-    const [expandedTab, setExpandedTab] = useState<string | null>('team-execution');
+    const [expandedTabs, setExpandedTabs] = useState<Record<string, boolean>>({
+        'team-execution': true,
+        'business-potential-market': false,
+        'product-technology': false,
+        'economics-finance': false,
+        'investment-memo': false,
+    });
     const [canonicals, setCanonicals] = useState<Record<string, CanonicalDoc>>({});
     const [caseSummary, setCaseSummary] = useState<CaseSummary | null>(null);
     const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatus>>({});
     const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+
+    // Global "Process All" state
+    const [globalProcessing, setGlobalProcessing] = useState<{
+        active: boolean;
+        currentSectionIndex: number;
+        sectionsCompleted: number;
+        docsProcessed: number;
+        totalDocs: number;
+        error: string | null;
+    }>({ active: false, currentSectionIndex: 0, sectionsCompleted: 0, docsProcessed: 0, totalDocs: 0, error: null });
+    const globalProcessingRef = useRef(false);
+    const hasCheckedResume = useRef(false);
 
     // Load all canonical docs
     const loadCanonicals = useCallback(async () => {
@@ -180,10 +198,10 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
     }, [loadCanonicals, loadCaseSummary, loadFileStatuses]);
 
     const toggleTab = (tabId: string) => {
-        setExpandedTab(prev => prev === tabId ? null : tabId);
+        setExpandedTabs(prev => ({ ...prev, [tabId]: !prev[tabId] }));
     };
 
-    const handleSectionProcessed = async (sectionId: string) => {
+    const handleSectionProcessed = useCallback(async (sectionId: string) => {
         // Reload that section's canonical doc and file status
         try {
             const [canonicalRes, fileStatusRes] = await Promise.all([
@@ -204,7 +222,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
         } catch (error) {
             console.error('Error refreshing section:', error);
         }
-    };
+    }, [workspaceSlug]);
 
     const handleUpdateCaseSummary = async () => {
         setIsLoadingSummary(true);
@@ -225,9 +243,313 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
         }
     };
 
+    // --- Process All: persistence helpers ---
+    const saveProcessAllStatus = useCallback(async (status: {
+        active: boolean;
+        sections: string[];
+        completedSections: string[];
+        startedAt: string | null;
+        error: string | null;
+    }) => {
+        try {
+            await fetch('/api/fact-sheet/process-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceSlug, status }),
+            });
+        } catch (e) {
+            console.error('Failed to save process-all status:', e);
+        }
+    }, [workspaceSlug]);
+
+    const loadProcessAllStatus = useCallback(async () => {
+        try {
+            const res = await fetch(`/api/fact-sheet/process-all?workspace=${workspaceSlug}`);
+            if (res.ok) return res.json();
+        } catch (e) {
+            console.error('Failed to load process-all status:', e);
+        }
+        return { active: false, sections: [], completedSections: [], startedAt: null, error: null };
+    }, [workspaceSlug]);
+
+    const fetchSectionStatus = useCallback(async (sectionId: string) => {
+        try {
+            const res = await fetch(`/api/fact-sheet/status?workspace=${workspaceSlug}&section=${sectionId}`);
+            if (res.ok) return res.json();
+        } catch {}
+        return { status: 'idle', progress: '', error: null };
+    }, [workspaceSlug]);
+
+    // --- Global Process All: sequentially process all 4 sections ---
+    // Works by fire-and-forget POST + polling so it can resume after page reload.
+    const processAllSections = useCallback(async (resumeCompletedSections?: string[]) => {
+        if (globalProcessing.active && !resumeCompletedSections) return;
+
+        const sectionIds = SECTIONS.map(s => s.id);
+        const completedSections = resumeCompletedSections ? [...resumeCompletedSections] : [];
+        const startedAt = resumeCompletedSections ? (await loadProcessAllStatus()).startedAt : new Date().toISOString();
+
+        // Calculate total docs across all sections
+        let totalDocs = 0;
+        for (const section of SECTIONS) {
+            const fs = fileStatuses[section.id];
+            if (fs) totalDocs += fs.files.length;
+        }
+
+        globalProcessingRef.current = true;
+        setGlobalProcessing({
+            active: true,
+            currentSectionIndex: completedSections.length,
+            sectionsCompleted: completedSections.length,
+            docsProcessed: 0,
+            totalDocs,
+            error: null,
+        });
+
+        // Save initial state to server (only for fresh start)
+        if (!resumeCompletedSections) {
+            await saveProcessAllStatus({
+                active: true,
+                sections: sectionIds,
+                completedSections: [],
+                startedAt: startedAt,
+                error: null,
+            });
+        }
+
+        let docsProcessedSoFar = 0;
+
+        for (let i = 0; i < SECTIONS.length; i++) {
+            if (!globalProcessingRef.current) break;
+
+            const section = SECTIONS[i];
+
+            // Skip sections that were already completed in this run
+            if (completedSections.includes(section.id)) {
+                const sectionDocs = fileStatuses[section.id]?.files.length || 0;
+                docsProcessedSoFar += sectionDocs;
+                continue;
+            }
+
+            // Skip sections that are fully processed (green = no unprocessed docs)
+            const sectionFileStatus = fileStatuses[section.id];
+            const sectionCanonical = canonicals[section.id];
+            const isFullyProcessed = sectionCanonical?.sourcesProcessed?.length > 0
+                && sectionFileStatus && sectionFileStatus.newFilesCount === 0;
+            if (isFullyProcessed && !resumeCompletedSections) {
+                // Already up-to-date — skip
+                completedSections.push(section.id);
+                const sectionDocs = sectionFileStatus?.files.length || 0;
+                docsProcessedSoFar += sectionDocs;
+                setGlobalProcessing(prev => ({
+                    ...prev,
+                    sectionsCompleted: completedSections.length,
+                    docsProcessed: docsProcessedSoFar,
+                }));
+                continue;
+            }
+
+            setGlobalProcessing(prev => ({ ...prev, currentSectionIndex: i }));
+
+            // Check if this section is already running on the server (e.g. from before reload)
+            const serverStatus = await fetchSectionStatus(section.id);
+
+            if (serverStatus.status !== 'running') {
+                // Fire POST (don't await the response — it blocks until processing finishes)
+                fetch('/api/fact-sheet/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workspaceSlug, sectionId: section.id, processNewOnly: false }),
+                }).catch(err => console.error(`Error processing ${section.id}:`, err));
+
+                // Wait for server to start and update status to 'running'
+                let acknowledged = false;
+                for (let attempt = 0; attempt < 15 && globalProcessingRef.current; attempt++) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    const s = await fetchSectionStatus(section.id);
+                    if (s.status === 'running') {
+                        acknowledged = true;
+                        break;
+                    }
+                    // If it already completed (fast section), that also counts
+                    if (s.status === 'completed') {
+                        acknowledged = true;
+                        break;
+                    }
+                }
+
+                if (!acknowledged && globalProcessingRef.current) {
+                    console.error(`Server did not acknowledge processing for ${section.id}`);
+                    setGlobalProcessing(prev => ({ ...prev, active: false, error: `Failed to start ${section.title}` }));
+                    await saveProcessAllStatus({
+                        active: false, sections: sectionIds, completedSections, startedAt, error: `Failed to start ${section.title}`,
+                    });
+                    globalProcessingRef.current = false;
+                    return;
+                }
+            }
+
+            // Poll until this section completes
+            let sectionDone = false;
+            while (!sectionDone && globalProcessingRef.current) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                const pollStatus = await fetchSectionStatus(section.id);
+                if (pollStatus.status === 'completed' || pollStatus.status === 'idle') {
+                    sectionDone = true;
+                } else if (pollStatus.status === 'error') {
+                    sectionDone = true;
+                    console.error(`Section ${section.id} processing error:`, pollStatus.error);
+                }
+            }
+
+            // Refresh this section's data
+            await handleSectionProcessed(section.id);
+
+            const sectionDocs = fileStatuses[section.id]?.files.length || 0;
+            docsProcessedSoFar += sectionDocs;
+            completedSections.push(section.id);
+
+            setGlobalProcessing(prev => ({
+                ...prev,
+                sectionsCompleted: completedSections.length,
+                docsProcessed: docsProcessedSoFar,
+            }));
+
+            // Save progress to server so we can resume after reload
+            await saveProcessAllStatus({
+                active: true,
+                sections: sectionIds,
+                completedSections: [...completedSections],
+                startedAt,
+                error: null,
+            });
+        }
+
+        // All done - reload everything
+        await Promise.all([loadCanonicals(), loadFileStatuses()]);
+        globalProcessingRef.current = false;
+        setGlobalProcessing(prev => ({ ...prev, active: false }));
+
+        await saveProcessAllStatus({
+            active: false,
+            sections: sectionIds,
+            completedSections,
+            startedAt,
+            error: null,
+        });
+    }, [globalProcessing.active, fileStatuses, canonicals, workspaceSlug, fetchSectionStatus, saveProcessAllStatus, loadProcessAllStatus, handleSectionProcessed, loadCanonicals, loadFileStatuses]);
+
+    const cancelGlobalProcessing = useCallback(async () => {
+        globalProcessingRef.current = false;
+        setGlobalProcessing(prev => ({ ...prev, active: false }));
+        await saveProcessAllStatus({
+            active: false,
+            sections: SECTIONS.map(s => s.id),
+            completedSections: [],
+            startedAt: null,
+            error: 'Cancelled by user',
+        });
+    }, [saveProcessAllStatus]);
+
+    // --- Resume Process All on mount if it was active ---
+    useEffect(() => {
+        if (hasCheckedResume.current) return;
+        hasCheckedResume.current = true;
+
+        const checkAndResume = async () => {
+            const savedStatus = await loadProcessAllStatus();
+            if (savedStatus.active && savedStatus.sections?.length > 0) {
+                // There was an active Process All when the page was closed/reloaded
+                console.log('Resuming Process All from:', savedStatus.completedSections?.length || 0, 'completed sections');
+                processAllSections(savedStatus.completedSections || []);
+            }
+        };
+        checkAndResume();
+    }, [loadProcessAllStatus, processAllSections]);
+
     return (
         <div className="flex flex-col gap-3 h-[calc(100vh-160px)]">
-            {/* Top: Score Meters */}
+            {/* Top Bar: Process All + Status */}
+            <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-2">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => processAllSections()}
+                        disabled={globalProcessing.active}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                            globalProcessing.active
+                                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                        }`}
+                    >
+                        {globalProcessing.active ? (
+                            <span className="flex items-center gap-2">
+                                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                Processing...
+                            </span>
+                        ) : (
+                            '⚡ Process All'
+                        )}
+                    </button>
+
+                    {globalProcessing.active && (
+                        <button
+                            onClick={cancelGlobalProcessing}
+                            className="px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                    )}
+                </div>
+
+                {/* Status Indicator */}
+                <div className="flex items-center gap-4">
+                    {globalProcessing.active && (
+                        <div className="flex items-center gap-3">
+                            {/* Current section indicator */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-gray-700">
+                                    {SECTIONS[globalProcessing.currentSectionIndex]?.icon}{' '}
+                                    {SECTIONS[globalProcessing.currentSectionIndex]?.title}
+                                </span>
+                                <span className="text-xs text-gray-600">
+                                    ({globalProcessing.sectionsCompleted + 1} of {SECTIONS.length})
+                                </span>
+                            </div>
+
+                            {/* Progress bar */}
+                            <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                                    style={{ width: `${(globalProcessing.sectionsCompleted / SECTIONS.length) * 100}%` }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Doc count summary */}
+                    <div className="text-sm text-gray-700">
+                        {(() => {
+                            const processedCount = Object.values(fileStatuses).reduce(
+                                (sum, fs) => sum + (fs?.processedFilesCount || 0), 0
+                            );
+                            const totalCount = Object.values(fileStatuses).reduce(
+                                (sum, fs) => sum + (fs?.files?.length || 0), 0
+                            );
+                            return (
+                                <span className="font-medium">
+                                    {processedCount} <span className="text-gray-600">({totalCount})</span>{' '}
+                                    <span className="text-gray-700">Docs Processed</span>
+                                </span>
+                            );
+                        })()}
+                    </div>
+                </div>
+            </div>
+
+            {/* Score Meters */}
             <div className="grid grid-cols-4 gap-3">
                 {SECTIONS.map((section) => {
                     const canonical = canonicals[section.id] as CanonicalDoc | undefined;
@@ -263,103 +585,169 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                 })}
             </div>
 
-            {/* Middle + Right: Tabs + Summary Panel */}
-            <div className="flex gap-3 flex-1 min-h-0">
-                {/* Vertical Collapsible Tabs */}
-                <div className="flex gap-2 flex-1 min-w-0">
-                    {SECTIONS.map((section) => {
-                        const isExpanded = expandedTab === section.id;
-                        const canonical = canonicals[section.id] as CanonicalDoc | undefined;
-                        const fileStatus = fileStatuses[section.id];
+            {/* Vertical Collapsible Tabs (Sections + Investment Memo) */}
+            <div className="flex gap-2 flex-1 min-h-0">
+                {SECTIONS.map((section) => {
+                    const isExpanded = expandedTabs[section.id] ?? false;
+                    const canonical = canonicals[section.id] as CanonicalDoc | undefined;
+                    const fileStatus = fileStatuses[section.id];
 
-                        return (
-                            <div
-                                key={section.id}
+                    return (
+                        <div
+                            key={section.id}
+                            className={`
+                                flex flex-col rounded-lg shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 ease-in-out
+                                ${isExpanded ? 'flex-1 min-w-[320px]' : 'w-14 cursor-pointer'}
+                            `}
+                        >
+                            {/* Tab Header / Collapsed Bar */}
+                            <button
+                                onClick={() => toggleTab(section.id)}
                                 className={`
-                                    flex flex-col rounded-lg shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 ease-in-out
-                                    ${isExpanded ? 'flex-1 min-w-[320px]' : 'w-14 cursor-pointer'}
+                                    relative flex items-center transition-colors
+                                    ${isExpanded
+                                        ? `${section.headerColor} ${section.headerHover} px-4 py-3 justify-between`
+                                        : `${section.headerColor} ${section.headerHover} flex-col h-full py-4 px-1 justify-start`
+                                    }
                                 `}
                             >
-                                {/* Tab Header / Collapsed Bar */}
-                                <button
-                                    onClick={() => toggleTab(section.id)}
-                                    className={`
-                                        relative flex items-center transition-colors
-                                        ${isExpanded
-                                            ? `${section.headerColor} ${section.headerHover} px-4 py-3 justify-between`
-                                            : `${section.headerColor} ${section.headerHover} flex-col h-full py-4 px-1 justify-start`
-                                        }
-                                    `}
-                                >
-                                    {/* Status dot */}
-                                    <div className={`w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0 ${
-                                        canonical?.sourcesProcessed?.length
-                                            ? (fileStatus?.newFilesCount ? 'bg-yellow-500' : 'bg-green-500')
-                                            : 'bg-red-400'
-                                    } ${isExpanded ? '' : 'mb-3'}`} />
+                                {/* Status dot */}
+                                <div className={`w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0 ${
+                                    canonical?.sourcesProcessed?.length
+                                        ? (fileStatus?.newFilesCount ? 'bg-yellow-500' : 'bg-green-500')
+                                        : 'bg-red-400'
+                                } ${isExpanded ? '' : 'mb-3'}`} />
 
-                                    {isExpanded ? (
-                                        <div className="flex-1 ml-3 text-left">
-                                            <h3 className="font-semibold text-gray-800 text-sm">
-                                                {section.icon} {section.title}
-                                            </h3>
-                                            {fileStatus && fileStatus.newFilesCount > 0 && (
-                                                <span className="text-xs text-amber-700">
-                                                    {fileStatus.newFilesCount} unprocessed
-                                                </span>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center mt-2">
-                                            <span className="text-lg mb-2">{section.icon}</span>
-                                            <span
-                                                className="text-xs font-medium text-gray-700 whitespace-nowrap"
-                                                style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
-                                            >
-                                                {section.title}
+                                {isExpanded ? (
+                                    <div className="flex-1 ml-3 text-left">
+                                        <h3 className="font-semibold text-gray-800 text-sm">
+                                            {section.icon} {section.title}
+                                        </h3>
+                                        {fileStatus && fileStatus.newFilesCount > 0 && (
+                                            <span className="text-xs text-amber-700">
+                                                {fileStatus.newFilesCount} unprocessed
                                             </span>
-                                            {fileStatus && fileStatus.newFilesCount > 0 && (
-                                                <span className="mt-2 w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
-                                                    {fileStatus.newFilesCount}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {isExpanded && (
-                                        <svg className="w-4 h-4 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                        </svg>
-                                    )}
-                                </button>
-
-                                {/* Tab Content */}
-                                {isExpanded && (
-                                    <div className="flex-1 overflow-auto bg-white">
-                                        <FactSheetTab
-                                            workspaceSlug={workspaceSlug}
-                                            sectionId={section.id}
-                                            sectionTitle={section.title}
-                                            canonical={canonical || null}
-                                            fileStatus={fileStatus || null}
-                                            onProcessed={() => handleSectionProcessed(section.id)}
-                                        />
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center mt-2">
+                                        <span className="text-lg mb-2">{section.icon}</span>
+                                        <span
+                                            className="text-xs font-medium text-gray-700 whitespace-nowrap"
+                                            style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                                        >
+                                            {section.title}
+                                        </span>
+                                        {fileStatus && fileStatus.newFilesCount > 0 && (
+                                            <span className="mt-2 w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                                                {fileStatus.newFilesCount}
+                                            </span>
+                                        )}
                                     </div>
                                 )}
-                            </div>
-                        );
-                    })}
-                </div>
 
-                {/* Right Panel: Investment Memo / Case Summary */}
-                <div className="w-72 flex-shrink-0">
-                    <FactSheetSummaryPanel
-                        caseSummary={caseSummary}
-                        canonicals={canonicals}
-                        isLoading={isLoadingSummary}
-                        onUpdate={handleUpdateCaseSummary}
-                    />
-                </div>
+                                {isExpanded && (
+                                    <svg className="w-4 h-4 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                )}
+                            </button>
+
+                            {/* Tab Content */}
+                            {isExpanded && (
+                                <div className="flex-1 overflow-auto bg-white">
+                                    <FactSheetTab
+                                        workspaceSlug={workspaceSlug}
+                                        sectionId={section.id}
+                                        sectionTitle={section.title}
+                                        canonical={canonical || null}
+                                        fileStatus={fileStatus || null}
+                                        onProcessed={() => handleSectionProcessed(section.id)}
+                                        isGlobalProcessing={globalProcessing.active}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+
+                {/* Investment Memo - Collapsible Tab (50% wider when collapsed) */}
+                {(() => {
+                    const isMemoExpanded = expandedTabs['investment-memo'] ?? false;
+                    const hasMemoData = caseSummary && (caseSummary.overallScore !== null || caseSummary.summary);
+                    return (
+                        <div
+                            className={`
+                                flex flex-col rounded-lg shadow-sm border border-blue-200 overflow-hidden transition-all duration-300 ease-in-out
+                                ${isMemoExpanded ? 'flex-1 min-w-[320px]' : 'w-[5.25rem] cursor-pointer'}
+                            `}
+                        >
+                            {/* Tab Header / Collapsed Bar */}
+                            <button
+                                onClick={() => toggleTab('investment-memo')}
+                                className={`
+                                    relative flex items-center transition-colors
+                                    ${isMemoExpanded
+                                        ? 'bg-gradient-to-r from-gray-100 to-blue-100 hover:from-gray-200 hover:to-blue-200 px-4 py-3 justify-between'
+                                        : 'bg-gradient-to-b from-gray-100 to-blue-100 hover:from-gray-200 hover:to-blue-200 flex-col h-full py-4 px-1 justify-start'
+                                    }
+                                `}
+                            >
+                                {/* Status dot */}
+                                <div className={`w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0 ${
+                                    hasMemoData ? 'bg-green-500' : 'bg-gray-400'
+                                } ${isMemoExpanded ? '' : 'mb-3'}`} />
+
+                                {isMemoExpanded ? (
+                                    <div className="flex-1 ml-3 text-left">
+                                        <h3 className="font-semibold text-gray-800 text-sm">
+                                            📋 Investment Memo
+                                        </h3>
+                                        {caseSummary?.overallScore != null && (
+                                            <span className="text-xs text-gray-600">
+                                                Score: {caseSummary.overallScore.toFixed(1)}/10
+                                            </span>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center mt-2">
+                                        <span className="text-lg mb-2">📋</span>
+                                        {caseSummary?.overallScore != null && (
+                                            <span className="text-xs font-bold text-gray-800 mb-1">
+                                                {caseSummary.overallScore.toFixed(1)}
+                                            </span>
+                                        )}
+                                        <span
+                                            className="text-xs font-medium text-gray-700 whitespace-nowrap"
+                                            style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                                        >
+                                            Investment Memo
+                                        </span>
+                                    </div>
+                                )}
+
+                                {isMemoExpanded && (
+                                    <svg className="w-4 h-4 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                )}
+                            </button>
+
+                            {/* Memo Content */}
+                            {isMemoExpanded && (
+                                <div className="flex-1 overflow-hidden bg-white">
+                                    <FactSheetSummaryPanel
+                                        caseSummary={caseSummary}
+                                        canonicals={canonicals}
+                                        isLoading={isLoadingSummary}
+                                        onUpdate={handleUpdateCaseSummary}
+                                        workspaceSlug={workspaceSlug}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
             </div>
         </div>
     );
