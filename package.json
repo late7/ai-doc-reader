@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/init-config.js && next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/init-config.js && next start",
     "lint": "next lint",
     "init-config": "node scripts/init-config.js"
   },
