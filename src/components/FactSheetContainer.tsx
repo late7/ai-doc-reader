@@ -280,8 +280,62 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
         return { status: 'idle', progress: '', error: null };
     }, [workspaceSlug]);
 
-    // --- Global Process All: sequentially process all 4 sections ---
+    // Helper: run web analysis + summary for a section (fire-and-forget style with await)
+    const runWebAnalysisForSection = useCallback(async (sectionId: string): Promise<boolean> => {
+        try {
+            console.log(`[process-all] Starting web analysis for ${sectionId}...`);
+            const webRes = await fetch('/api/fact-sheet/web-analysis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceSlug, sectionId }),
+            });
+            if (!webRes.ok) {
+                console.error(`[process-all] Web analysis failed for ${sectionId}`);
+                return false;
+            }
+            console.log(`[process-all] Web analysis complete for ${sectionId}, generating summary...`);
+            const summaryRes = await fetch('/api/fact-sheet/web-analysis-summary', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceSlug, sectionId }),
+            });
+            if (!summaryRes.ok) {
+                console.warn(`[process-all] Web summary failed for ${sectionId} (non-fatal)`);
+            }
+            return true;
+        } catch (err) {
+            console.error(`[process-all] Web analysis error for ${sectionId}:`, err);
+            return false;
+        }
+    }, [workspaceSlug]);
+
+    // Helper: generate Investment Memo
+    const generateInvestmentMemo = useCallback(async () => {
+        try {
+            console.log('[process-all] Generating Investment Memo...');
+            const response = await fetch('/api/fact-sheet/case-summary', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceSlug }),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.summary) setCaseSummary(data.summary);
+                console.log('[process-all] Investment Memo generated successfully');
+                return true;
+            }
+            console.error('[process-all] Investment Memo generation failed');
+            return false;
+        } catch (err) {
+            console.error('[process-all] Investment Memo error:', err);
+            return false;
+        }
+    }, [workspaceSlug]);
+
+    // --- Global Process All: sequentially process all 4 sections + web analysis + investment memo ---
     // Works by fire-and-forget POST + polling so it can resume after page reload.
+    // Pipeline per section: Canonical Processing → Web Analysis → Web Summary
+    // After all 4 sections: Investment Memo generation
     const processAllSections = useCallback(async (resumeCompletedSections?: string[]) => {
         if (globalProcessing.active && !resumeCompletedSections) return;
 
@@ -289,12 +343,15 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
         const completedSections = resumeCompletedSections ? [...resumeCompletedSections] : [];
         const startedAt = resumeCompletedSections ? (await loadProcessAllStatus()).startedAt : new Date().toISOString();
 
+        console.log(`[ProcessAll] ⚡ Starting pipeline — ${resumeCompletedSections ? 'resuming from ' + completedSections.length + ' completed' : 'fresh run'}, sections: ${sectionIds.join(', ')}`);
+
         // Calculate total docs across all sections
         let totalDocs = 0;
         for (const section of SECTIONS) {
             const fs = fileStatuses[section.id];
             if (fs) totalDocs += fs.files.length;
         }
+        console.log(`[ProcessAll] Total documents across all sections: ${totalDocs}`);
 
         globalProcessingRef.current = true;
         setGlobalProcessing({
@@ -337,7 +394,8 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
             const isFullyProcessed = sectionCanonical?.sourcesProcessed?.length > 0
                 && sectionFileStatus && sectionFileStatus.newFilesCount === 0;
             if (isFullyProcessed && !resumeCompletedSections) {
-                // Already up-to-date — skip
+                // Already up-to-date — skip canonical processing but still run web analysis
+                console.log(`[ProcessAll] ⏭️ Skipping "${section.title}" (already processed) — running web analysis only`);
                 completedSections.push(section.id);
                 const sectionDocs = sectionFileStatus?.files.length || 0;
                 docsProcessedSoFar += sectionDocs;
@@ -346,10 +404,16 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                     sectionsCompleted: completedSections.length,
                     docsProcessed: docsProcessedSoFar,
                 }));
+
+                // Run web analysis for skipped-but-has-data sections too
+                if (sectionCanonical?.sourcesProcessed?.length > 0) {
+                    await runWebAnalysisForSection(section.id);
+                }
                 continue;
             }
 
             setGlobalProcessing(prev => ({ ...prev, currentSectionIndex: i }));
+            console.log(`[ProcessAll] 📄 Processing section ${i + 1}/${SECTIONS.length}: "${section.title}" — canonical docs + web analysis`);
 
             // Check if this section is already running on the server (e.g. from before reload)
             const serverStatus = await fetchSectionStatus(section.id);
@@ -405,9 +469,15 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
             // Refresh this section's data
             await handleSectionProcessed(section.id);
 
+            // --- Auto-trigger web analysis after canonical processing ---
+            if (globalProcessingRef.current) {
+                await runWebAnalysisForSection(section.id);
+            }
+
             const sectionDocs = fileStatuses[section.id]?.files.length || 0;
             docsProcessedSoFar += sectionDocs;
             completedSections.push(section.id);
+            console.log(`[ProcessAll] ✅ Section "${section.title}" complete (${completedSections.length}/${SECTIONS.length})`);
 
             setGlobalProcessing(prev => ({
                 ...prev,
@@ -425,7 +495,17 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
             });
         }
 
+        // --- After all sections done: generate Investment Memo ---
+        if (globalProcessingRef.current) {
+            setGlobalProcessing(prev => ({
+                ...prev,
+                currentSectionIndex: SECTIONS.length, // signals "Investment Memo" step
+            }));
+            await generateInvestmentMemo();
+        }
+
         // All done - reload everything
+        console.log(`[ProcessAll] 🎉 Pipeline complete — ${completedSections.length} sections processed + Investment Memo generated`);
         await Promise.all([loadCanonicals(), loadFileStatuses()]);
         globalProcessingRef.current = false;
         setGlobalProcessing(prev => ({ ...prev, active: false }));
@@ -437,7 +517,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
             startedAt,
             error: null,
         });
-    }, [globalProcessing.active, fileStatuses, canonicals, workspaceSlug, fetchSectionStatus, saveProcessAllStatus, loadProcessAllStatus, handleSectionProcessed, loadCanonicals, loadFileStatuses]);
+    }, [globalProcessing.active, fileStatuses, canonicals, workspaceSlug, fetchSectionStatus, saveProcessAllStatus, loadProcessAllStatus, handleSectionProcessed, loadCanonicals, loadFileStatuses, runWebAnalysisForSection, generateInvestmentMemo]);
 
     const cancelGlobalProcessing = useCallback(async () => {
         globalProcessingRef.current = false;
@@ -511,11 +591,17 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                             {/* Current section indicator */}
                             <div className="flex items-center gap-2">
                                 <span className="text-sm font-medium text-gray-700">
-                                    {SECTIONS[globalProcessing.currentSectionIndex]?.icon}{' '}
-                                    {SECTIONS[globalProcessing.currentSectionIndex]?.title}
+                                    {globalProcessing.currentSectionIndex < SECTIONS.length ? (
+                                        <>
+                                            {SECTIONS[globalProcessing.currentSectionIndex]?.icon}{' '}
+                                            {SECTIONS[globalProcessing.currentSectionIndex]?.title}
+                                        </>
+                                    ) : (
+                                        <>📋 Investment Memo</>
+                                    )}
                                 </span>
                                 <span className="text-xs text-gray-600">
-                                    ({globalProcessing.sectionsCompleted + 1} of {SECTIONS.length})
+                                    ({Math.min(globalProcessing.sectionsCompleted + 1, SECTIONS.length + 1)} of {SECTIONS.length + 1})
                                 </span>
                             </div>
 
@@ -523,7 +609,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                             <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
                                 <div
                                     className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                    style={{ width: `${(globalProcessing.sectionsCompleted / SECTIONS.length) * 100}%` }}
+                                    style={{ width: `${(globalProcessing.sectionsCompleted / (SECTIONS.length + 1)) * 100}%` }}
                                 />
                             </div>
                         </div>

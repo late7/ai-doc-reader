@@ -87,15 +87,31 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Load web analysis for business-potential-market if available
-        let webAnalysis: Record<string, unknown> | null = null;
-        try {
-            const webAnalysisFile = path.join(processedDir, 'factsheet_web_analysis_business-potential-market.json');
-            const webContent = await fs.readFile(webAnalysisFile, 'utf-8');
-            webAnalysis = JSON.parse(webContent);
-        } catch {
-            // No web analysis available - that's fine
+        // Load web analysis for all sections if available
+        const webAnalyses: Record<string, unknown> = {};
+        for (const sec of VALID_SECTIONS) {
+            try {
+                const webAnalysisFile = path.join(processedDir, `factsheet_web_analysis_${sec}.json`);
+                const webContent = await fs.readFile(webAnalysisFile, 'utf-8');
+                webAnalyses[sec] = JSON.parse(webContent);
+            } catch {
+                // No web analysis for this section — that's fine
+            }
         }
+
+        // Also load web summaries (human-readable) for all sections
+        const webSummaries: Record<string, unknown> = {};
+        for (const sec of VALID_SECTIONS) {
+            try {
+                const webSummaryFile = path.join(processedDir, `factsheet_web_summary_${sec}.json`);
+                const content = await fs.readFile(webSummaryFile, 'utf-8');
+                webSummaries[sec] = JSON.parse(content);
+            } catch {
+                // No web summary for this section — that's fine
+            }
+        }
+
+        const hasWebData = Object.keys(webAnalyses).length > 0;
 
         if (!hasAnyData) {
             return NextResponse.json({ error: 'No section data available. Process documents first.' }, { status: 400 });
@@ -118,8 +134,12 @@ export async function POST(request: NextRequest) {
                     content: [{
                         type: 'input_text',
                         text: `Here are the four Fact Sheet canonical documents:\n\n${JSON.stringify(canonicals, null, 2)}${
-                            webAnalysis
-                                ? `\n\nAdditionally, here is the Web Analysis for Business Potential and Market section (based on web search for external evidence, competitor data, and market validation):\n\n${JSON.stringify(webAnalysis, null, 2)}`
+                            hasWebData
+                                ? `\n\nAdditionally, here are the Web Analysis results from live web research for each section (validating/challenging the canonical claims with external evidence):\n\n${JSON.stringify(webAnalyses, null, 2)}`
+                                : ''
+                        }${
+                            Object.keys(webSummaries).length > 0
+                                ? `\n\nHere are the executive Web Analysis Summaries synthesizing canonical and web evidence:\n\n${JSON.stringify(webSummaries, null, 2)}`
                                 : ''
                         }`,
                     }],

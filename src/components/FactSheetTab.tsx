@@ -135,6 +135,7 @@ export default function FactSheetTab({
                     const data = await response.json();
                     setProcessStatus(data);
                     if (data.status === 'completed') {
+                        console.log(`[FactSheet] ✅ Document processing complete for "${sectionTitle}"`);
                         onProcessed();
                     }
                 }
@@ -189,6 +190,7 @@ export default function FactSheetTab({
     };
 
     const startProcessing = async (processNewOnly: boolean) => {
+        console.log(`[FactSheet] 📄 Starting document processing for "${sectionTitle}" (${sectionId}) — processNewOnly=${processNewOnly}`);
         setProcessStatus({ status: 'running', progress: 'Starting...', error: null });
 
         try {
@@ -199,10 +201,11 @@ export default function FactSheetTab({
             }).then(async (response) => {
                 const data = await response.json();
                 if (!response.ok) {
+                    console.error(`[FactSheet] ❌ Processing failed for "${sectionTitle}":`, data.message);
                     setProcessStatus({ status: 'error', progress: '', error: data.message || 'Processing failed' });
                 }
             }).catch((error) => {
-                console.error('Processing error:', error);
+                console.error('[FactSheet] ❌ Processing error:', error);
             });
         } catch (error) {
             setProcessStatus({ status: 'error', progress: '', error: 'Failed to start processing' });
@@ -249,6 +252,7 @@ export default function FactSheetTab({
     };
 
     const startWebAnalysis = async () => {
+        console.log(`[FactSheet] 🌐 Starting web analysis for "${sectionTitle}" (${sectionId})...`);
         setWebAnalysisStatus({ status: 'running', progress: 'Starting web analysis...', error: null });
 
         try {
@@ -259,6 +263,7 @@ export default function FactSheetTab({
             });
             const data = await response.json();
             if (response.ok && data.webAnalysis) {
+                console.log(`[FactSheet] 🌐 Web analysis complete for "${sectionTitle}" — score: ${data.webAnalysis.overallWebScore ?? 'N/A'}/10. Generating summary...`);
                 setWebAnalysis(data.webAnalysis);
                 setWebAnalysisStatus({ status: 'completed', progress: 'Web analysis complete. Generating summary...', error: null });
                 // Auto-trigger summary generation
@@ -283,6 +288,7 @@ export default function FactSheetTab({
             });
             const data = await response.json();
             if (response.ok && data.summary) {
+                console.log(`[FactSheet] 📊 Web summary generated for "${sectionTitle}" — pipeline complete`);
                 setWebSummary(data.summary);
                 setWebSummaryStatus({ status: 'completed', progress: 'Summary complete.', error: null });
                 setWebAnalysisStatus({ status: 'completed', progress: 'Web analysis and summary complete.', error: null });
@@ -365,21 +371,29 @@ export default function FactSheetTab({
                         {hasSources && (
                             <button
                                 onClick={startWebAnalysis}
-                                disabled={webAnalysisStatus.status === 'running' || isProcessingDisabled}
+                                disabled={webAnalysisStatus.status === 'running' || webSummaryStatus.status === 'running' || isProcessingDisabled}
                                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                    webAnalysisStatus.status === 'running'
+                                    webAnalysisStatus.status === 'running' || webSummaryStatus.status === 'running' || isProcessingDisabled
                                         ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
                                         : 'bg-purple-600 hover:bg-purple-700 text-white'
                                 }`}
-                                title="Search the web for market evidence and competitor data"
+                                title="Search the web for evidence and validate claims"
                             >
-                                {webAnalysisStatus.status === 'running' ? (
+                                {webAnalysisStatus.status === 'running' || webSummaryStatus.status === 'running' ? (
                                     <span className="flex items-center gap-1">
                                         <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                         </svg>
-                                        Searching...
+                                        {webSummaryStatus.status === 'running' ? 'Summarizing...' : 'Searching...'}
+                                    </span>
+                                ) : isProcessingDisabled ? (
+                                    <span className="flex items-center gap-1">
+                                        <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                        </svg>
+                                        Wait...
                                     </span>
                                 ) : (
                                     '🌐 Web Analysis'
@@ -416,7 +430,7 @@ export default function FactSheetTab({
                                 className="text-red-400 hover:text-red-600"
                                 title="Reset section"
                             >
-                                🔄
+                                �️
                             </button>
                         )}
                     </div>
@@ -594,6 +608,30 @@ export default function FactSheetTab({
                                                 <li key={i} className="text-xs text-amber-700">• {q}</li>
                                             ))}
                                         </ul>
+                                    </div>
+                                )}
+
+                                {/* Web Analysis Summary embedded in section summary */}
+                                {webSummary && (
+                                    <div className="mt-4 border-t border-purple-200 pt-4 not-prose">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-sm font-semibold text-purple-800">🌐 Web Analysis Summary</span>
+                                            {webAnalysis?.overallWebScore != null && (
+                                                <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-xs font-bold">
+                                                    {String(webAnalysis.overallWebScore)}/10
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="prose prose-sm prose-gray max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 prose-li:text-gray-800 prose-strong:text-gray-900">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {webSummary.markdown}
+                                            </ReactMarkdown>
+                                        </div>
+                                        {webSummary.generatedAt && (
+                                            <p className="mt-1 text-[10px] text-gray-600">
+                                                Web analysis: {new Date(webSummary.generatedAt).toLocaleString()}
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </div>
