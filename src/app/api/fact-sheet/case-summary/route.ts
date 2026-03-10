@@ -120,13 +120,13 @@ export async function POST(request: NextRequest) {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
         const response = await openai.responses.create({
-            model: process.env.OPENAI_MODEL || 'gpt-5.4',
+            model: process.env.OPENAI_MODEL || 'gpt-5.2',
             input: [
                 {
                     role: 'developer',
                     content: [{
                         type: 'input_text',
-                        text: `${caseSummaryPrompt}\n\nReturn JSON with this structure:\n{\n  "companyName": "string or null",\n  "overallScore": <number 0-10 or null>,\n  "recommendation": "Pass|Consider|Invest|Strong Invest",\n  "askAmount": "string or null",\n  "stage": "string or null",\n  "summary": "<markdown formatted investment memo summary>",\n  "keyHighlights": ["..."],\n  "keyInsights": ["..."],\n  "watchouts": ["..."]\n}`,
+                        text: `${caseSummaryPrompt}\n\nReturn JSON with this structure:\n{\n  "companyName": "string or null",\n  "overallScore": <number 0-10 or null>,\n  "recommendation": "Pass|Consider|Invest|Strong Invest",\n  "askAmount": "string or null",\n  "stage": "string or null",\n  "summary": "<markdown formatted investment memo summary>",\n  "keyHighlights": ["..."],\n  "keyInsights": ["..."],\n  "watchouts": ["..."],\n  "executiveSummary": {\n    "whatTheyDo": "2-3 sentence plain-English description of what the company does, who the customer is, and the core problem solved. No jargon.",\n    "growthSignal": "1-2 sentences answering: is the company growing faster than 3x the market growth rate? Cite the specific ARR/user/revenue growth rate vs estimated market CAGR. Be direct — answer Yes/No and justify.",\n    "capitalRationale": "2-3 sentences: what specifically will the raise fund (engineering, sales, ops), and how does that investment plausibly return 2x in 2 years? Anchor to pipeline conversion, ARR trajectory, or enterprise contract value."\n  }\n}`,
                     }],
                 },
                 {

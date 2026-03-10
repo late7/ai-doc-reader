@@ -133,13 +133,16 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        // Load web analysis prompt from config
+        // Load web analysis prompt and context size from config
         const promptsFile = path.join(projectRoot, 'src', 'config', 'factSheetPrompts.json');
         let webAnalysisPrompt = '';
+        let searchContextSize: 'low' | 'medium' | 'high' = 'low';
         try {
             const promptsContent = await fs.readFile(promptsFile, 'utf-8');
             const promptsConfig = JSON.parse(promptsContent);
             webAnalysisPrompt = promptsConfig.sections?.[sectionId]?.webAnalysisPrompt || '';
+            const configuredSize = promptsConfig.sections?.[sectionId]?.searchContextSize;
+            if (configuredSize === 'medium' || configuredSize === 'high') searchContextSize = configuredSize;
         } catch {
             console.warn('Could not load web analysis prompt from config');
         }
@@ -197,7 +200,7 @@ ${companyInfo}`;
 
         const startTime = Date.now();
         const response = await openai.responses.create({
-            model: process.env.OPENAI_MODEL || 'gpt-5-mini',
+            model: process.env.OPENAI_MODEL || 'gpt-5.2',
             input: [
                 {
                     role: 'developer',
@@ -224,7 +227,7 @@ ${companyInfo}`;
             tools: [
                 {
                     type: 'web_search_preview',
-                    search_context_size: 'medium',
+                    search_context_size: searchContextSize,
                     user_location: {
                         type: 'approximate',
                         country: 'FI',

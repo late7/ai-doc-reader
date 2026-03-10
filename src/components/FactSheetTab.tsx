@@ -26,6 +26,11 @@ interface CanonicalDoc {
     openQuestions: string[];
     sourcesProcessed: string[];
     lastUpdated: string | null;
+    financialMetrics?: {
+        currency: string | null;
+        scalingNote: string | null;
+        items: Array<{ label: string; value: number | null; formatted: string; period: string | null }>;
+    } | null;
 }
 
 interface FileStatus {
@@ -62,6 +67,7 @@ export default function FactSheetTab({
     const [analysisPrompt, setAnalysisPrompt] = useState('');
     const [summaryPrompt, setSummaryPrompt] = useState('');
     const [webAnalysisPrompt, setWebAnalysisPrompt] = useState('');
+    const [webSearchContextSize, setWebSearchContextSize] = useState<'low' | 'medium' | 'high'>('low');
     const [isSavingPrompts, setIsSavingPrompts] = useState(false);
     const [activeView, setActiveView] = useState<'summary' | 'details' | 'raw' | 'web-analysis' | 'web-analysis-raw'>('summary');
     const [showFileList, setShowFileList] = useState(false);
@@ -158,6 +164,7 @@ export default function FactSheetTab({
                     setAnalysisPrompt(sectionPrompts.analysisPrompt || '');
                     setSummaryPrompt(sectionPrompts.summaryPrompt || '');
                     setWebAnalysisPrompt(sectionPrompts.webAnalysisPrompt || '');
+                    setWebSearchContextSize((sectionPrompts.searchContextSize as 'low' | 'medium' | 'high') || 'low');
                 }
             }
         } catch (error) {
@@ -174,7 +181,7 @@ export default function FactSheetTab({
                 const data = await loadRes.json();
                 const prompts = data.prompts;
                 if (!prompts.sections) prompts.sections = {};
-                const sectionData: Record<string, string> = { analysisPrompt, summaryPrompt, webAnalysisPrompt };
+                const sectionData: Record<string, string> = { analysisPrompt, summaryPrompt, webAnalysisPrompt, searchContextSize: webSearchContextSize };
                 prompts.sections[sectionId] = sectionData;
 
                 await fetch('/api/fact-sheet/prompts', {
@@ -519,12 +526,26 @@ export default function FactSheetTab({
                         />
                     </div>
                     <div>
-                        <label className="text-xs text-gray-800 font-medium">🌐 Web Analysis Prompt (web search):</label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs text-gray-800 font-medium">🌐 Web Analysis Prompt (web search):</label>
+                            <div className="flex items-center gap-1.5">
+                                <label className="text-xs text-gray-700">Context size:</label>
+                                <select
+                                    value={webSearchContextSize}
+                                    onChange={(e) => setWebSearchContextSize(e.target.value as 'low' | 'medium' | 'high')}
+                                    className="text-xs text-gray-800 border border-gray-300 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                                >
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                            </div>
+                        </div>
                         <textarea
                             value={webAnalysisPrompt}
                             onChange={(e) => setWebAnalysisPrompt(e.target.value)}
                             rows={3}
-                            className="w-full mt-1 px-2 py-1.5 text-xs text-gray-800 border border-gray-300 rounded-md focus:ring-1 focus:ring-purple-500 focus:border-purple-500 placeholder:text-gray-500"
+                            className="w-full px-2 py-1.5 text-xs text-gray-800 border border-gray-300 rounded-md focus:ring-1 focus:ring-purple-500 focus:border-purple-500 placeholder:text-gray-500"
                             placeholder="Prompt for web search analysis..."
                         />
                     </div>
@@ -612,6 +633,38 @@ export default function FactSheetTab({
                                         </div>
                                     )}
                                 </div>
+
+                                {/* Financial Key Metrics — economics-finance section only */}
+                                {sectionId === 'economics-finance' && canonical!.financialMetrics && canonical!.financialMetrics.items && canonical!.financialMetrics.items.length > 0 && (
+                                    <div className="mt-4 not-prose">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <h5 className="text-xs font-semibold text-gray-800 uppercase tracking-wide">Key Financial Metrics</h5>
+                                            {canonical!.financialMetrics.scalingNote && (
+                                                <span className="text-[10px] text-gray-600 italic">{canonical!.financialMetrics.scalingNote}</span>
+                                            )}
+                                        </div>
+                                        <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                            <table className="w-full text-xs">
+                                                <thead>
+                                                    <tr className="bg-gray-50 border-b border-gray-200">
+                                                        <th className="text-left px-3 py-2 font-semibold text-gray-700">Metric</th>
+                                                        <th className="text-right px-3 py-2 font-semibold text-gray-700">Value</th>
+                                                        <th className="text-right px-3 py-2 font-semibold text-gray-600 font-normal">Period</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {canonical!.financialMetrics.items.map((item, i) => (
+                                                        <tr key={i} className={`border-b border-gray-100 last:border-0 ${item.value !== null ? '' : 'opacity-50'}`}>
+                                                            <td className="px-3 py-2 text-gray-800 font-medium">{item.label}</td>
+                                                            <td className="px-3 py-2 text-right text-gray-800 tabular-nums">{item.formatted}</td>
+                                                            <td className="px-3 py-2 text-right text-gray-600">{item.period ?? '—'}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {canonical!.openQuestions.length > 0 && (
                                     <div className="mt-3 bg-amber-50 rounded-lg p-3 not-prose">

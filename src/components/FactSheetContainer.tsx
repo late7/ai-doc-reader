@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import FactSheetTab from './FactSheetTab';
 import FactSheetSummaryPanel from './FactSheetSummaryPanel';
+import InvestorFactSheetPanel from './InvestorFactSheetPanel';
 
 interface FactSheetContainerProps {
     workspaceSlug: string;
@@ -31,6 +32,11 @@ interface CanonicalDoc {
     openQuestions: string[];
     sourcesProcessed: string[];
     lastUpdated: string | null;
+    financialMetrics?: {
+        currency: string | null;
+        scalingNote: string | null;
+        items: Array<{ label: string; value: number | null; formatted: string; period: string | null }>;
+    } | null;
 }
 
 interface CaseSummary {
@@ -43,6 +49,27 @@ interface CaseSummary {
     keyHighlights: string[];
     keyInsights: string[];
     watchouts: string[];
+    lastUpdated: string | null;
+    executiveSummary: {
+        whatTheyDo: string | null;
+        growthSignal: string | null;
+        capitalRationale: string | null;
+    } | null;
+}
+
+interface InvestorFactSheet {
+    companyName: string | null;
+    sector: string | null;
+    valueProposition: string | null;
+    keyBadges: string[];
+    investmentHighlights: Array<{ type: string; icon: string; label: string; headline: string; detail: string }>;
+    leadInvestorValidation: { investor: string; commitment: string; detail: string } | null;
+    whyNow: { headline: string; detail: string } | null;
+    financialSnapshot: Array<{ metric: string; value: string; note: string | null }>;
+    useOfFunds: Array<{ percentage: number; label: string; detail: string }>;
+    executionTimeline: Array<{ date: string; milestone: string; status: 'completed' | 'in-progress' | 'planned' }>;
+    askAmount: string | null;
+    stage: string | null;
     lastUpdated: string | null;
 }
 
@@ -130,11 +157,14 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
         'product-technology': false,
         'economics-finance': false,
         'investment-memo': false,
+        'investor-factsheet': false,
     });
     const [canonicals, setCanonicals] = useState<Record<string, CanonicalDoc>>({});
     const [caseSummary, setCaseSummary] = useState<CaseSummary | null>(null);
+    const [investorFactSheet, setInvestorFactSheet] = useState<InvestorFactSheet | null>(null);
     const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatus>>({});
     const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+    const [isLoadingFactSheet, setIsLoadingFactSheet] = useState(false);
 
     // Global "Process All" state
     const [globalProcessing, setGlobalProcessing] = useState<{
@@ -174,6 +204,19 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
         }
     }, [workspaceSlug]);
 
+    // Load investor fact sheet
+    const loadInvestorFactSheet = useCallback(async () => {
+        try {
+            const response = await fetch(`/api/fact-sheet/investor-factsheet?workspace=${workspaceSlug}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.factsheet) setInvestorFactSheet(data.factsheet);
+            }
+        } catch (error) {
+            console.error('Error loading investor fact sheet:', error);
+        }
+    }, [workspaceSlug]);
+
     // Load file statuses for all sections
     const loadFileStatuses = useCallback(async () => {
         const statuses: Record<string, FileStatus> = {};
@@ -194,8 +237,9 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
     useEffect(() => {
         loadCanonicals();
         loadCaseSummary();
+        loadInvestorFactSheet();
         loadFileStatuses();
-    }, [loadCanonicals, loadCaseSummary, loadFileStatuses]);
+    }, [loadCanonicals, loadCaseSummary, loadInvestorFactSheet, loadFileStatuses]);
 
     const toggleTab = (tabId: string) => {
         setExpandedTabs(prev => ({ ...prev, [tabId]: !prev[tabId] }));
@@ -240,6 +284,25 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
             console.error('Error updating case summary:', error);
         } finally {
             setIsLoadingSummary(false);
+        }
+    };
+
+    const handleUpdateInvestorFactSheet = async () => {
+        setIsLoadingFactSheet(true);
+        try {
+            const response = await fetch('/api/fact-sheet/investor-factsheet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceSlug }),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.factsheet) setInvestorFactSheet(data.factsheet);
+            }
+        } catch (error) {
+            console.error('Error generating investor fact sheet:', error);
+        } finally {
+            setIsLoadingFactSheet(false);
         }
     };
 
@@ -328,6 +391,29 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
             return false;
         } catch (err) {
             console.error('[process-all] Investment Memo error:', err);
+            return false;
+        }
+    }, [workspaceSlug]);
+
+    // Helper: generate Investor Fact Sheet
+    const generateInvestorFactSheetHelper = useCallback(async () => {
+        try {
+            console.log('[process-all] Generating Investor Fact Sheet...');
+            const response = await fetch('/api/fact-sheet/investor-factsheet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceSlug }),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.factsheet) setInvestorFactSheet(data.factsheet);
+                console.log('[process-all] Investor Fact Sheet generated successfully');
+                return true;
+            }
+            console.error('[process-all] Investor Fact Sheet generation failed');
+            return false;
+        } catch (err) {
+            console.error('[process-all] Investor Fact Sheet error:', err);
             return false;
         }
     }, [workspaceSlug]);
@@ -495,7 +581,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
             });
         }
 
-        // --- After all sections done: generate Investment Memo ---
+        // --- After all sections done: generate Investment Memo then Investor Fact Sheet ---
         if (globalProcessingRef.current) {
             setGlobalProcessing(prev => ({
                 ...prev,
@@ -504,8 +590,16 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
             await generateInvestmentMemo();
         }
 
+        if (globalProcessingRef.current) {
+            setGlobalProcessing(prev => ({
+                ...prev,
+                currentSectionIndex: SECTIONS.length + 1, // signals "Investor Fact Sheet" step
+            }));
+            await generateInvestorFactSheetHelper();
+        }
+
         // All done - reload everything
-        console.log(`[ProcessAll] 🎉 Pipeline complete — ${completedSections.length} sections processed + Investment Memo generated`);
+        console.log(`[ProcessAll] 🎉 Pipeline complete — ${completedSections.length} sections processed + Investment Memo + Investor Fact Sheet generated`);
         await Promise.all([loadCanonicals(), loadFileStatuses()]);
         globalProcessingRef.current = false;
         setGlobalProcessing(prev => ({ ...prev, active: false }));
@@ -517,7 +611,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
             startedAt,
             error: null,
         });
-    }, [globalProcessing.active, fileStatuses, canonicals, workspaceSlug, fetchSectionStatus, saveProcessAllStatus, loadProcessAllStatus, handleSectionProcessed, loadCanonicals, loadFileStatuses, runWebAnalysisForSection, generateInvestmentMemo]);
+    }, [globalProcessing.active, fileStatuses, canonicals, workspaceSlug, fetchSectionStatus, saveProcessAllStatus, loadProcessAllStatus, handleSectionProcessed, loadCanonicals, loadFileStatuses, runWebAnalysisForSection, generateInvestmentMemo, generateInvestorFactSheetHelper]);
 
     const cancelGlobalProcessing = useCallback(async () => {
         globalProcessingRef.current = false;
@@ -596,12 +690,14 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                                             {SECTIONS[globalProcessing.currentSectionIndex]?.icon}{' '}
                                             {SECTIONS[globalProcessing.currentSectionIndex]?.title}
                                         </>
+                                    ) : globalProcessing.currentSectionIndex === SECTIONS.length ? (
+                                        <>Internal Investment Memo</>
                                     ) : (
-                                        <>📋 Internal Investment Memo</>
+                                        <>Investor Fact Sheet</>
                                     )}
                                 </span>
                                 <span className="text-xs text-gray-600">
-                                    ({Math.min(globalProcessing.sectionsCompleted + 1, SECTIONS.length + 1)} of {SECTIONS.length + 1})
+                                    ({Math.min(globalProcessing.sectionsCompleted + 1, SECTIONS.length + 2)} of {SECTIONS.length + 2})
                                 </span>
                             </div>
 
@@ -609,7 +705,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                             <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
                                 <div
                                     className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                    style={{ width: `${(globalProcessing.sectionsCompleted / (SECTIONS.length + 1)) * 100}%` }}
+                                    style={{ width: `${(globalProcessing.sectionsCompleted / (SECTIONS.length + 2)) * 100}%` }}
                                 />
                             </div>
                         </div>
@@ -828,6 +924,76 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                                         isLoading={isLoadingSummary}
                                         onUpdate={handleUpdateCaseSummary}
                                         workspaceSlug={workspaceSlug}
+                                        isGlobalProcessing={globalProcessing.active}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
+                {/* Investor Fact Sheet - Collapsible Tab */}
+                {(() => {
+                    const isFactSheetExpanded = expandedTabs['investor-factsheet'] ?? false;
+                    const hasFactSheetData = investorFactSheet && (investorFactSheet.companyName || investorFactSheet.valueProposition);
+                    return (
+                        <div
+                            className={`
+                                flex flex-col rounded-lg shadow-sm border border-emerald-200 overflow-hidden transition-all duration-300 ease-in-out
+                                ${isFactSheetExpanded ? 'flex-1 min-w-[320px]' : 'w-[5.25rem] cursor-pointer'}
+                            `}
+                        >
+                            {/* Tab Header / Collapsed Bar */}
+                            <button
+                                onClick={() => toggleTab('investor-factsheet')}
+                                className={`
+                                    relative flex items-center transition-colors
+                                    ${isFactSheetExpanded
+                                        ? 'bg-gradient-to-r from-slate-100 to-emerald-100 hover:from-slate-200 hover:to-emerald-200 px-4 py-3 justify-between'
+                                        : 'bg-gradient-to-b from-slate-100 to-emerald-100 hover:from-slate-200 hover:to-emerald-200 flex-col h-full py-4 px-1 justify-start'
+                                    }
+                                `}
+                            >
+                                {/* Status dot */}
+                                <div className={`w-3 h-3 rounded-full border-2 border-white shadow-sm flex-shrink-0 ${
+                                    hasFactSheetData ? 'bg-green-500' : 'bg-gray-400'
+                                } ${isFactSheetExpanded ? '' : 'mb-3'}`} />
+
+                                {isFactSheetExpanded ? (
+                                    <div className="flex-1 ml-3 text-left">
+                                        <h3 className="font-semibold text-gray-800 text-sm">
+                                            Fact Sheet
+                                        </h3>
+                                        <span className="text-xs text-gray-600">External Investor One-Pager</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center mt-2">
+                                        <span
+                                            className="text-xs font-medium text-gray-700 whitespace-nowrap"
+                                            style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                                        >
+                                            Fact Sheet
+                                        </span>
+                                    </div>
+                                )}
+
+                                {isFactSheetExpanded && (
+                                    <svg className="w-4 h-4 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                )}
+                            </button>
+
+                            {/* Fact Sheet Content */}
+                            {isFactSheetExpanded && (
+                                <div className="flex-1 overflow-hidden bg-white">
+                                    <InvestorFactSheetPanel
+                                        factsheet={investorFactSheet}
+                                        canonicals={canonicals}
+                                        isLoading={isLoadingFactSheet}
+                                        onUpdate={handleUpdateInvestorFactSheet}
+                                        workspaceSlug={workspaceSlug}
+                                        isGlobalProcessing={globalProcessing.active}
                                     />
                                 </div>
                             )}

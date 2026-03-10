@@ -196,6 +196,7 @@ export async function POST(request: NextRequest) {
                 openQuestions: [],
                 sourcesProcessed: [],
                 lastUpdated: null,
+                ...(sectionId === 'economics-finance' && { financialMetrics: null }),
             };
         }
 
@@ -213,7 +214,7 @@ export async function POST(request: NextRequest) {
                 const mimeType = ALLOWED_MIME_TYPES[file.ext] || 'application/octet-stream';
 
                 const response = await openai.responses.create({
-                    model: process.env.OPENAI_MODEL || 'gpt-5.4',
+                    model: process.env.OPENAI_MODEL || 'gpt-5.2',
                     input: [
                         {
                             role: 'developer',
@@ -291,12 +292,17 @@ export async function POST(request: NextRequest) {
         if (processedSourceFiles.length > 0) {
             await updateStatus(statusFile, { progress: 'Generating summary...' });
             try {
+                const isFinanceSection = sectionId === 'economics-finance';
+                const summaryJsonSchema = isFinanceSection
+                    ? `{\n  "summary": "<markdown formatted summary>",\n  "score": <0-10 number>,\n  "financialMetrics": {\n    "currency": "<detected currency symbol, e.g. € or $ or null if unknown>",\n    "scalingNote": "<any overarching scale modifier found in the document, e.g. 'All figures in thousands (k)' or null>",\n    "items": [\n      {\n        "label": "<metric name, one of: Revenue | Investments | Ongoing Operating Expenses | EBIT | Profit | Funding Raised | Loans | Sales Estimate>",\n        "value": <plain number after normalizing scale, e.g. 1k -> 1000, 2.34M -> 2340000, or null if not found>,\n        "formatted": "<human-readable value with currency, e.g. '€1,234,000' or 'N/A'>",\n        "period": "<time period if stated, e.g. 'FY2023' or 'Q1 2024' or null>"\n      }\n    ]\n  }\n}\nFinancialMetrics rules:\n- Always include all 8 metric labels even if not found (use null value and 'N/A' formatted).\n- Detect scale modifiers like 'All figures in k€', 'in thousands', 'amounts in millions' and apply them globally.\n- Normalize shorthand: 1k -> 1000, 2.34M -> 2340000, 1.5B -> 1500000000.\n- Detect currency from context (€, $, £, CHF, etc.) — do NOT convert between currencies.\n- If multiple periods are present, use the most recent or most prominent.`
+                    : `{\n  "summary": "<markdown formatted summary>",\n  "score": <0-10 number>\n}`;
+
                 const summaryResponse = await openai.responses.create({
-                    model: process.env.OPENAI_MODEL || 'gpt-5.4',
+                    model: process.env.OPENAI_MODEL || 'gpt-5.2',
                     input: [
                         {
                             role: 'developer',
-                            content: [{ type: 'input_text', text: `${summaryPrompt}\n\nYou will receive the current canonical document data as JSON. Generate a human-readable markdown summary and an updated score.\n\nReturn JSON:\n{\n  "summary": "<markdown formatted summary>",\n  "score": <0-10 number>\n}` }],
+                            content: [{ type: 'input_text', text: `${summaryPrompt}\n\nYou will receive the current canonical document data as JSON. Generate a human-readable markdown summary and an updated score.\n\nReturn JSON:\n${summaryJsonSchema}` }],
                         },
                         {
                             role: 'user',
@@ -314,6 +320,9 @@ export async function POST(request: NextRequest) {
                     const summaryResult = JSON.parse(summaryText);
                     if (summaryResult.summary) canonical.summary = summaryResult.summary;
                     if (summaryResult.score !== null && summaryResult.score !== undefined) canonical.score = summaryResult.score;
+                    if (isFinanceSection && summaryResult.financialMetrics) {
+                        canonical.financialMetrics = summaryResult.financialMetrics;
+                    }
                 }
             } catch (summaryError) {
                 console.error('Error generating summary:', summaryError);

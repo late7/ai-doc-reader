@@ -15,6 +15,11 @@ interface CaseSummary {
     keyInsights: string[];
     watchouts: string[];
     lastUpdated: string | null;
+    executiveSummary: {
+        whatTheyDo: string | null;
+        growthSignal: string | null;
+        capitalRationale: string | null;
+    } | null;
 }
 
 interface CanonicalDoc {
@@ -32,6 +37,7 @@ interface FactSheetSummaryPanelProps {
     isLoading: boolean;
     onUpdate: () => void;
     workspaceSlug: string;
+    isGlobalProcessing?: boolean;
 }
 
 function getRecommendationStyle(rec: string | null): { bg: string; text: string } {
@@ -49,6 +55,7 @@ export default function FactSheetSummaryPanel({
     isLoading,
     onUpdate,
     workspaceSlug,
+    isGlobalProcessing = false,
 }: FactSheetSummaryPanelProps) {
     const summary = caseSummary;
     const hasData = summary && (summary.overallScore !== null || summary.summary);
@@ -312,13 +319,13 @@ export default function FactSheetSummaryPanel({
                         )}
                         <button
                             onClick={onUpdate}
-                            disabled={isLoading || sectionsWithData === 0}
+                            disabled={isLoading || sectionsWithData === 0 || isGlobalProcessing}
                             className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
-                                isLoading || sectionsWithData === 0
+                                isLoading || sectionsWithData === 0 || isGlobalProcessing
                                     ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                                     : 'bg-blue-600 hover:bg-blue-700 text-white'
                             }`}
-                            title={sectionsWithData === 0 ? 'Process at least one section first' : 'Update investment memo'}
+                            title={isGlobalProcessing ? 'Processing in progress…' : sectionsWithData === 0 ? 'Process at least one section first' : 'Generate investment memo'}
                         >
                             {isLoading ? (
                                 <span className="flex items-center gap-1">
@@ -326,10 +333,10 @@ export default function FactSheetSummaryPanel({
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                     </svg>
-                                    Updating...
+                                    Generating...
                                 </span>
                             ) : (
-                                '🔄 Update'
+                                'Generate'
                             )}
                         </button>
                     </div>
@@ -379,6 +386,31 @@ export default function FactSheetSummaryPanel({
                                     <div className="flex justify-between">
                                         <span className="text-gray-700">Stage</span>
                                         <span className="font-medium text-gray-800">{summary.stage}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Executive Summary */}
+                        {summary?.executiveSummary && (
+                            <div className="border-t border-gray-100 pt-3 space-y-2.5">
+                                <h4 className="text-xs font-semibold text-gray-800 mb-2">Executive Summary</h4>
+                                {summary.executiveSummary.whatTheyDo && (
+                                    <div>
+                                        <p className="text-[10px] font-semibold text-gray-700 uppercase tracking-wide mb-0.5">What they do</p>
+                                        <p className="text-xs text-gray-800 leading-relaxed">{summary.executiveSummary.whatTheyDo}</p>
+                                    </div>
+                                )}
+                                {summary.executiveSummary.growthSignal && (
+                                    <div>
+                                        <p className="text-[10px] font-semibold text-gray-700 uppercase tracking-wide mb-0.5">Growth vs. Market</p>
+                                        <p className="text-xs text-gray-800 leading-relaxed">{summary.executiveSummary.growthSignal}</p>
+                                    </div>
+                                )}
+                                {summary.executiveSummary.capitalRationale && (
+                                    <div>
+                                        <p className="text-[10px] font-semibold text-gray-700 uppercase tracking-wide mb-0.5">Capital &amp; Return Rationale</p>
+                                        <p className="text-xs text-gray-800 leading-relaxed">{summary.executiveSummary.capitalRationale}</p>
                                     </div>
                                 )}
                             </div>

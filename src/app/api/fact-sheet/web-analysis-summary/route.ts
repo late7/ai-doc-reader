@@ -235,7 +235,7 @@ Please synthesize all of the above into a single executive ${sectionTitle} analy
 
         const startTime = Date.now();
         const response = await openai.responses.create({
-            model: process.env.OPENAI_MODEL || 'gpt-5-mini',
+            model: process.env.OPENAI_MODEL || 'gpt-5.2',
             input: [
                 {
                     role: 'developer',
