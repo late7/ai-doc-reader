@@ -32,6 +32,6 @@
     }
   },
   "caseSummary": {
-    "prompt": "Read the four canonical Fact Sheet section documents and synthesize an investment memo snapshot. Return company name, overall score, recommendation, ask amount if stated, stage if inferable, markdown summary, key highlights, key insights, and watchouts. Keep statements evidence-based and explicitly mark unknown values."
+    "prompt": "Read all five canonical Fact Sheet section documents (Case Overview, Team & Execution, Business Potential & Market, Product & Technology, Economics & Finance) and their web analysis results. Synthesize an investment memo snapshot. Return company name, overall score, recommendation, ask amount if stated, stage if inferable, markdown summary, key highlights, key insights, and watchouts. Keep statements evidence-based and explicitly mark unknown values."
   }
 }

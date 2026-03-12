@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import path from 'path';
 import fs from 'fs/promises';
 
-const VALID_SECTIONS = ['team-execution', 'business-potential-market', 'product-technology', 'economics-finance'];
+const VALID_SECTIONS = ['case-overview', 'team-execution', 'business-potential-market', 'product-technology', 'economics-finance'];
 
 export async function GET(request: NextRequest) {
     try {
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
                     role: 'user',
                     content: [{
                         type: 'input_text',
-                        text: `Here are the four Fact Sheet canonical documents:\n\n${JSON.stringify(canonicals, null, 2)}${
+                        text: `Here are the five Fact Sheet canonical documents (Case Overview, Team & Execution, Business Potential & Market, Product & Technology, Economics & Finance):\n\n${JSON.stringify(canonicals, null, 2)}${
                             hasWebData
                                 ? `\n\nAdditionally, here are the Web Analysis results from live web research for each section (validating/challenging the canonical claims with external evidence):\n\n${JSON.stringify(webAnalyses, null, 2)}`
                                 : ''
