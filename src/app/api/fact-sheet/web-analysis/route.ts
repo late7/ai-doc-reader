@@ -6,9 +6,10 @@ import fs from 'fs/promises';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-const VALID_SECTIONS = ['team-execution', 'business-potential-market', 'product-technology', 'economics-finance'];
+const VALID_SECTIONS = ['case-overview', 'team-execution', 'business-potential-market', 'product-technology', 'economics-finance'];
 
 const SECTION_TITLES: Record<string, string> = {
+    'case-overview': 'Case Overview',
     'team-execution': 'Team & Execution',
     'business-potential-market': 'Business Potential & Market',
     'product-technology': 'Product & Technology',
@@ -16,6 +17,7 @@ const SECTION_TITLES: Record<string, string> = {
 };
 
 const SECTION_ANALYST_ROLES: Record<string, string> = {
+    'case-overview': 'a Due Diligence analyst specializing in company identification, web presence verification, and investment case research',
     'team-execution': 'a Due Diligence analyst specializing in leadership assessment, team evaluation, and organizational analysis',
     'business-potential-market': 'a Due Diligence analyst specializing in market research and competitive analysis',
     'product-technology': 'a Due Diligence analyst specializing in product evaluation, technology assessment, and technical moat analysis',
@@ -157,22 +159,56 @@ export async function POST(request: NextRequest) {
             error: null,
         }), 'utf-8');
 
+        // Load company name — try case-overview canonical first (available early in pipeline),
+        // then fall back to case summary (investment memo, generated at end of Process All)
+        let companyName = '';
+        try {
+            const caseOverviewFile = path.join(processedDir, 'factsheet_case-overview.json');
+            const caseOverviewContent = await fs.readFile(caseOverviewFile, 'utf-8');
+            const caseOverview = JSON.parse(caseOverviewContent);
+            // summary field is a JSON string for case-overview
+            let summaryData: Record<string, unknown> = {};
+            if (typeof caseOverview.summary === 'string') {
+                try { summaryData = JSON.parse(caseOverview.summary); } catch { /* not JSON */ }
+            } else if (typeof caseOverview.summary === 'object' && caseOverview.summary !== null) {
+                summaryData = caseOverview.summary as Record<string, unknown>;
+            }
+            companyName = typeof summaryData.companyName === 'string' ? summaryData.companyName : '';
+        } catch { /* case-overview not yet processed */ }
+
+        if (!companyName) {
+            // Fallback: investment memo (generated at end of pipeline)
+            try {
+                const caseSummaryFile = path.join(processedDir, 'factsheet_case_summary.json');
+                const caseSummaryContent = await fs.readFile(caseSummaryFile, 'utf-8');
+                const caseSummary = JSON.parse(caseSummaryContent);
+                companyName = typeof caseSummary.companyName === 'string' ? caseSummary.companyName : '';
+            } catch { /* not yet generated */ }
+        }
+
         // Build a concise summary of what to search for
         const canonicalSummary = typeof canonicalData.summary === 'string' ? canonicalData.summary : '';
         const strengths = Array.isArray(canonicalData.strengths) ? canonicalData.strengths as string[] : [];
         const weaknesses = Array.isArray(canonicalData.weaknesses) ? canonicalData.weaknesses as string[] : [];
-        
-        // Truncate summary to first 2000 chars to keep request reasonable
-        const truncatedSummary = canonicalSummary.length > 2000 
-            ? canonicalSummary.substring(0, 2000) + '...[truncated]' 
-            : canonicalSummary;
-        const companyInfo = `Summary: ${truncatedSummary}\n\nStrengths: ${strengths.join('; ')}\n\nWeaknesses: ${weaknesses.join('; ')}`;
+        const openQuestions = Array.isArray(canonicalData.openQuestions) ? canonicalData.openQuestions as string[] : [];
 
+        // Truncate summary to first 2000 chars to keep request reasonable
+        const truncatedSummary = canonicalSummary.length > 2000
+            ? canonicalSummary.substring(0, 2000) + '...[truncated]'
+            : canonicalSummary;
+
+        const companyLine = companyName ? `Company: ${companyName}\n\n` : '';
+        const openQuestionsSection = openQuestions.length > 0
+            ? `\n\nOpen Questions to investigate: ${openQuestions.slice(0, 5).join('; ')}`
+            : '';
+        const companyInfo = `${companyLine}Summary: ${truncatedSummary}\n\nStrengths: ${strengths.join('; ')}\n\nWeaknesses: ${weaknesses.join('; ')}${openQuestionsSection}`;
+
+        const companyContext = companyName ? ` for ${companyName}` : '';
         const systemPrompt = `You are ${analystRole}.
 
 ${webAnalysisPrompt}
 
-Use web search to find real, current information. Cite sources with URLs where possible.
+Use web search to find real, current information${companyContext}. Cite sources with URLs where possible.
 
 Return your analysis as a JSON object with this structure:
 {
@@ -185,7 +221,8 @@ Return your analysis as a JSON object with this structure:
   "overallWebScore": 5
 }`;
 
-        const userPrompt = `Here is the canonical ${sectionTitle} document from our due diligence analysis. Please search the web to validate, supplement, or challenge these findings:
+        const companyRef = companyName ? ` for **${companyName}**` : '';
+        const userPrompt = `Here is the canonical ${sectionTitle} document from our due diligence analysis${companyRef}. Please search the web to validate, supplement, or challenge these findings:
 
 ${companyInfo}`;
 
@@ -218,8 +255,8 @@ ${companyInfo}`;
                 },
             ],
             reasoning: {
-                effort: 'medium' as const,
-                summary: 'auto' as any,
+                effort: 'low' as const,
+                summary: null as any,
             },
             text: {
                 format: { type: 'text' },
@@ -235,7 +272,7 @@ ${companyInfo}`;
                 } as any,
             ],
             store: false,
-        });
+        } as any);
 
         const elapsed = Date.now() - startTime;
         console.log('[web-analysis] OpenAI response received in ' + elapsed + 'ms');

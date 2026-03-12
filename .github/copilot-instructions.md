@@ -31,6 +31,12 @@ All text in the UI must be clearly readable. **Never use light grey text colors*
 
 ---
 
+## Port Configuration
+
+- **The dev server always runs on port 3000** — `http://localhost:3000`
+- **Port 3001 is reserved for AnythingLLM** — never start the dev server on 3001
+- If port 3000 is already in use, kill the blocking process and restart; do NOT let Next.js fall back to another port
+
 ## Web Testing with Chrome MCP
 
 Use the **Chrome DevTools MCP** tools for all browser-based testing and verification of UI changes. The dev server runs at `http://localhost:3000`.

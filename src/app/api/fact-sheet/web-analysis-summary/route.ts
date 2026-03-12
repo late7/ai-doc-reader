@@ -6,9 +6,10 @@ import fs from 'fs/promises';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-const VALID_SECTIONS = ['team-execution', 'business-potential-market', 'product-technology', 'economics-finance'];
+const VALID_SECTIONS = ['case-overview', 'team-execution', 'business-potential-market', 'product-technology', 'economics-finance'];
 
 const SECTION_TITLES: Record<string, string> = {
+    'case-overview': 'Case Overview',
     'team-execution': 'Team & Execution',
     'business-potential-market': 'Business Potential & Market',
     'product-technology': 'Product & Technology',
@@ -16,6 +17,14 @@ const SECTION_TITLES: Record<string, string> = {
 };
 
 const SECTION_SUMMARY_FOCUS: Record<string, { brief: string; sections: string[] }> = {
+    'case-overview': {
+        brief: 'company identity and web presence summary',
+        sections: [
+            'Company Identity — confirmed name, website URL, and what the company does based on web sources',
+            'Web Presence & News — notable recent news, press coverage, or milestones found online',
+            'Data Verification — which document claims were confirmed or corrected by web sources',
+        ],
+    },
     'team-execution': {
         brief: 'executive team and leadership assessment',
         sections: [

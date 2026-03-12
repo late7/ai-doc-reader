@@ -89,6 +89,17 @@ interface FileStatus {
 
 const SECTIONS: SectionConfig[] = [
     {
+        id: 'case-overview',
+        title: 'Case Overview',
+        shortTitle: 'Case',
+        color: 'bg-indigo-500',
+        bgColor: 'bg-indigo-50',
+        bgColorExpanded: 'bg-indigo-50',
+        headerColor: 'bg-indigo-100',
+        headerHover: 'hover:bg-indigo-200',
+        icon: '🏢',
+    },
+    {
         id: 'team-execution',
         title: 'Team & Execution',
         shortTitle: 'Team',
@@ -152,7 +163,8 @@ function getScoreBarColor(score: number | null): string {
 
 export default function FactSheetContainer({ workspaceSlug }: FactSheetContainerProps) {
     const [expandedTabs, setExpandedTabs] = useState<Record<string, boolean>>({
-        'team-execution': true,
+        'case-overview': true,
+        'team-execution': false,
         'business-potential-market': false,
         'product-technology': false,
         'economics-finance': false,
@@ -418,10 +430,11 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
         }
     }, [workspaceSlug]);
 
-    // --- Global Process All: sequentially process all 4 sections + web analysis + investment memo ---
+    // --- Global Process All: sequentially process all 5 sections + web analysis + investment memo ---
     // Works by fire-and-forget POST + polling so it can resume after page reload.
-    // Pipeline per section: Canonical Processing → Web Analysis → Web Summary
-    // After all 4 sections: Investment Memo generation
+    // Pipeline: Case Overview (1st) → Team → Market → Product → Finance → Investment Memo → Investor Fact Sheet
+    // Per section: Canonical Processing → Web Analysis → Web Summary
+    // Case Overview runs first so company name is available for all subsequent web analysis calls.
     const processAllSections = useCallback(async (resumeCompletedSections?: string[]) => {
         if (globalProcessing.active && !resumeCompletedSections) return;
 
@@ -461,6 +474,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
         }
 
         let docsProcessedSoFar = 0;
+        let sectionsActuallyProcessed = 0;
 
         for (let i = 0; i < SECTIONS.length; i++) {
             if (!globalProcessingRef.current) break;
@@ -474,26 +488,37 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                 continue;
             }
 
-            // Skip sections that are fully processed (green = no unprocessed docs)
+            // Skip sections that are fully processed (canonical current + no new files)
             const sectionFileStatus = fileStatuses[section.id];
             const sectionCanonical = canonicals[section.id];
             const isFullyProcessed = sectionCanonical?.sourcesProcessed?.length > 0
                 && sectionFileStatus && sectionFileStatus.newFilesCount === 0;
             if (isFullyProcessed && !resumeCompletedSections) {
-                // Already up-to-date — skip canonical processing but still run web analysis
-                console.log(`[ProcessAll] ⏭️ Skipping "${section.title}" (already processed) — running web analysis only`);
-                completedSections.push(section.id);
                 const sectionDocs = sectionFileStatus?.files.length || 0;
                 docsProcessedSoFar += sectionDocs;
+                completedSections.push(section.id);
                 setGlobalProcessing(prev => ({
                     ...prev,
                     sectionsCompleted: completedSections.length,
                     docsProcessed: docsProcessedSoFar,
                 }));
 
-                // Run web analysis for skipped-but-has-data sections too
-                if (sectionCanonical?.sourcesProcessed?.length > 0) {
+                // Check if web analysis already exists — skip if it does
+                let webAlreadyDone = false;
+                try {
+                    const webRes = await fetch(`/api/fact-sheet/web-analysis?workspace=${workspaceSlug}&section=${section.id}`);
+                    if (webRes.ok) {
+                        const webData = await webRes.json();
+                        webAlreadyDone = webData?.webAnalysis != null;
+                    }
+                } catch {}
+
+                if (webAlreadyDone) {
+                    console.log(`[ProcessAll] ⏭️ Fully skipping "${section.title}" — canonical and web analysis both current`);
+                } else {
+                    console.log(`[ProcessAll] ⏭️ Canonical current for "${section.title}" — running web analysis (no existing results)`);
                     await runWebAnalysisForSection(section.id);
+                    sectionsActuallyProcessed++;
                 }
                 continue;
             }
@@ -562,8 +587,9 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
 
             const sectionDocs = fileStatuses[section.id]?.files.length || 0;
             docsProcessedSoFar += sectionDocs;
+            sectionsActuallyProcessed++;
             completedSections.push(section.id);
-            console.log(`[ProcessAll] ✅ Section "${section.title}" complete (${completedSections.length}/${SECTIONS.length})`);
+            console.log(`[ProcessAll] ✅ Section "${section.title}" complete (${completedSections.length}/${SECTIONS.length})`); 
 
             setGlobalProcessing(prev => ({
                 ...prev,
@@ -582,20 +608,29 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
         }
 
         // --- After all sections done: generate Investment Memo then Investor Fact Sheet ---
+        // Only regenerate if something was actually processed this run, or if they don't exist yet
         if (globalProcessingRef.current) {
-            setGlobalProcessing(prev => ({
-                ...prev,
-                currentSectionIndex: SECTIONS.length, // signals "Investment Memo" step
-            }));
-            await generateInvestmentMemo();
+            if (sectionsActuallyProcessed > 0 || !caseSummary) {
+                setGlobalProcessing(prev => ({
+                    ...prev,
+                    currentSectionIndex: SECTIONS.length, // signals "Investment Memo" step
+                }));
+                await generateInvestmentMemo();
+            } else {
+                console.log('[process-all] Skipping Investment Memo — no new data processed, existing memo is current');
+            }
         }
 
         if (globalProcessingRef.current) {
-            setGlobalProcessing(prev => ({
-                ...prev,
-                currentSectionIndex: SECTIONS.length + 1, // signals "Investor Fact Sheet" step
-            }));
-            await generateInvestorFactSheetHelper();
+            if (sectionsActuallyProcessed > 0 || !investorFactSheet) {
+                setGlobalProcessing(prev => ({
+                    ...prev,
+                    currentSectionIndex: SECTIONS.length + 1, // signals "Investor Fact Sheet" step
+                }));
+                await generateInvestorFactSheetHelper();
+            } else {
+                console.log('[process-all] Skipping Investor Fact Sheet — no new data processed, existing sheet is current');
+            }
         }
 
         // All done - reload everything
@@ -661,7 +696,7 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                 </svg>
-                                Processing...
+                                Processing... this can take 5 to 30 minutes
                             </span>
                         ) : (
                             '⚡ Process All'
@@ -731,9 +766,9 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
                 </div>
             </div>
 
-            {/* Score Meters */}
+            {/* Score Meters — case-overview excluded, it has no investment score */}
             <div className="grid grid-cols-4 gap-3">
-                {SECTIONS.map((section) => {
+                {SECTIONS.filter(s => s.id !== 'case-overview').map((section) => {
                     const canonical = canonicals[section.id] as CanonicalDoc | undefined;
                     const score = canonical?.score ?? null;
                     const { label, color } = getScoreLabel(score);

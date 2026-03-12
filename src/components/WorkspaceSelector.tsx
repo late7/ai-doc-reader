@@ -24,9 +24,10 @@ interface Workspace {
 interface WorkspaceSelectorProps {
   onWorkspaceSelect: (workspace: Workspace) => void;
   selectedWorkspace: Workspace | null;
+  confirmationMessage?: string;
 }
 
-export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace }: WorkspaceSelectorProps) {
+export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace, confirmationMessage }: WorkspaceSelectorProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -244,6 +245,10 @@ export default function WorkspaceSelector({ onWorkspaceSelect, selectedWorkspace
 
               const workspace = workspaces.find(w => w.slug === newSlug);
               if (!workspace) return; // invalid selection
+
+              if (confirmationMessage && selectedWorkspace) {
+                if (!window.confirm(confirmationMessage)) return;
+              }
 
               // Reload the page with the new workspace URL
               // Analysis data is persisted so no data is lost on reload

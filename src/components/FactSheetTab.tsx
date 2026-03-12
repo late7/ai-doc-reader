@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import TeamInvestorCard from './TeamInvestorCard';
+import CaseOverviewCard from './CaseOverviewCard';
 
 interface FactSheetTabProps {
     workspaceSlug: string;
@@ -604,7 +605,19 @@ export default function FactSheetTab({
                             />
                         )}
 
-                        {activeView === 'summary' && sectionId !== 'team-execution' && (
+                        {activeView === 'summary' && sectionId === 'case-overview' && (
+                            <CaseOverviewCard
+                                score={canonical!.score}
+                                summary={canonical!.summary}
+                                strengths={canonical!.strengths}
+                                weaknesses={canonical!.weaknesses}
+                                openQuestions={canonical!.openQuestions}
+                                webSummary={webSummary}
+                                webAnalysis={webAnalysis}
+                            />
+                        )}
+
+                        {activeView === 'summary' && sectionId !== 'team-execution' && sectionId !== 'case-overview' && (
                             <div className="prose prose-sm prose-gray max-w-none prose-headings:text-gray-900 prose-p:text-gray-800 prose-li:text-gray-800 prose-strong:text-gray-900">
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                     {canonical!.summary || '_No summary generated yet. Process documents to generate._'}

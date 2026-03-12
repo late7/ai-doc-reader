@@ -16,9 +16,10 @@ const ALLOWED_MIME_TYPES: Record<string, string> = {
     '.csv': 'text/csv',
 };
 
-const VALID_SECTIONS = ['team-execution', 'business-potential-market', 'product-technology', 'economics-finance'];
+const VALID_SECTIONS = ['case-overview', 'team-execution', 'business-potential-market', 'product-technology', 'economics-finance'];
 
 const SECTION_TITLES: Record<string, string> = {
+    'case-overview': 'Case Overview',
     'team-execution': 'Team & Execution',
     'business-potential-market': 'Business Potential and Market',
     'product-technology': 'Product & Technology',
