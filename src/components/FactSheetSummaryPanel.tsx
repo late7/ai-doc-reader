@@ -10,6 +10,8 @@ interface CaseSummary {
     recommendation: string | null;
     askAmount: string | null;
     stage: string | null;
+    statedValuation: string | null;
+    opportunityType: string | null;
     summary: string;
     keyHighlights: string[];
     keyInsights: string[];
@@ -61,11 +63,53 @@ export default function FactSheetSummaryPanel({
     const hasData = summary && (summary.overallScore !== null || summary.summary);
     const recStyle = getRecommendationStyle(summary?.recommendation || null);
 
+    // Prompt editor state
+    const [showPromptEditor, setShowPromptEditor] = useState(false);
+    const [caseSummaryPrompt, setCaseSummaryPrompt] = useState('');
+    const [isSavingPrompts, setIsSavingPrompts] = useState(false);
+
     // Export state
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [exporting, setExporting] = useState(false);
     const exportMenuRef = useRef<HTMLDivElement>(null);
     const reportContentRef = useRef<HTMLDivElement>(null);
+
+    // Load prompt on mount
+    useEffect(() => {
+        const loadPrompt = async () => {
+            try {
+                const res = await fetch('/api/fact-sheet/prompts');
+                if (res.ok) {
+                    const data = await res.json();
+                    setCaseSummaryPrompt(data.prompts?.caseSummary?.prompt || '');
+                }
+            } catch (err) {
+                console.error('Error loading case summary prompt:', err);
+            }
+        };
+        loadPrompt();
+    }, []);
+
+    const saveCaseSummaryPrompt = async () => {
+        setIsSavingPrompts(true);
+        try {
+            const loadRes = await fetch('/api/fact-sheet/prompts');
+            if (loadRes.ok) {
+                const data = await loadRes.json();
+                const prompts = data.prompts;
+                prompts.caseSummary = { ...prompts.caseSummary, prompt: caseSummaryPrompt };
+                await fetch('/api/fact-sheet/prompts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompts }),
+                });
+            }
+        } catch (err) {
+            console.error('Error saving case summary prompt:', err);
+        } finally {
+            setIsSavingPrompts(false);
+        }
+    };
 
     // Close export menu when clicking outside
     useEffect(() => {
@@ -318,6 +362,13 @@ export default function FactSheetSummaryPanel({
                             </div>
                         )}
                         <button
+                            onClick={() => setShowPromptEditor(!showPromptEditor)}
+                            className="text-gray-700 hover:text-gray-900"
+                            title="Edit prompt"
+                        >
+                            ⚙️
+                        </button>
+                        <button
                             onClick={onUpdate}
                             disabled={isLoading || sectionsWithData === 0 || isGlobalProcessing}
                             className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
@@ -363,12 +414,35 @@ export default function FactSheetSummaryPanel({
                 )}
             </div>
 
+            {/* Prompt Editor */}
+            {showPromptEditor && (
+                <div className="border-b border-gray-200 px-4 py-3 bg-yellow-50/50 space-y-2">
+                    <h4 className="text-xs font-semibold text-gray-800 uppercase tracking-wide">Investment Memo Prompt</h4>
+                    <div>
+                        <label className="text-xs text-gray-800 font-medium">Synthesis prompt (used when generating the memo):</label>
+                        <textarea
+                            value={caseSummaryPrompt}
+                            onChange={(e) => setCaseSummaryPrompt(e.target.value)}
+                            rows={5}
+                            className="w-full mt-1 px-2 py-1.5 text-xs text-gray-800 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-500"
+                        />
+                    </div>
+                    <button
+                        onClick={saveCaseSummaryPrompt}
+                        disabled={isSavingPrompts}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md font-medium"
+                    >
+                        {isSavingPrompts ? 'Saving...' : 'Save Prompt'}
+                    </button>
+                </div>
+            )}
+
             {/* Scrollable Content */}
             <div className="flex-1 overflow-auto" ref={reportContentRef}>
                 {hasData ? (
                     <div className="px-4 py-3 space-y-4">
                         {/* Quick Info */}
-                        {(summary?.companyName || summary?.askAmount || summary?.stage) && (
+                        {(summary?.companyName || summary?.askAmount || summary?.stage || summary?.statedValuation || summary?.opportunityType) && (
                             <div className="space-y-1.5 text-xs">
                                 {summary?.companyName && (
                                     <div className="flex justify-between">
@@ -386,6 +460,18 @@ export default function FactSheetSummaryPanel({
                                     <div className="flex justify-between">
                                         <span className="text-gray-700">Stage</span>
                                         <span className="font-medium text-gray-800">{summary.stage}</span>
+                                    </div>
+                                )}
+                                {summary?.statedValuation && (
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-700">Stated Valuation</span>
+                                        <span className="font-medium text-gray-800">{summary.statedValuation}</span>
+                                    </div>
+                                )}
+                                {summary?.opportunityType && (
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-700">Opportunity Type</span>
+                                        <span className="font-medium text-gray-800">{summary.opportunityType}</span>
                                     </div>
                                 )}
                             </div>

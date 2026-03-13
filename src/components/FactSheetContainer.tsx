@@ -45,6 +45,8 @@ interface CaseSummary {
     recommendation: string | null;
     askAmount: string | null;
     stage: string | null;
+    statedValuation: string | null;
+    opportunityType: string | null;
     summary: string;
     keyHighlights: string[];
     keyInsights: string[];
