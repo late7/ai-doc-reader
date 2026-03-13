@@ -81,6 +81,11 @@ export default function FactSheetTab({
     const [webSummary, setWebSummary] = useState<{ markdown: string; webScore: string; generatedAt: string } | null>(null);
     const [webSummaryStatus, setWebSummaryStatus] = useState<ProcessStatus>({ status: 'idle', progress: '', error: null });
 
+    // Raw edit state
+    const [rawEditValue, setRawEditValue] = useState('');
+    const [rawEditError, setRawEditError] = useState<string | null>(null);
+    const [isSavingRaw, setIsSavingRaw] = useState(false);
+
     // Load prompts
     useEffect(() => {
         loadPrompts();
@@ -311,6 +316,35 @@ export default function FactSheetTab({
             console.error('Web summary error:', error);
             setWebSummaryStatus({ status: 'error', progress: '', error: 'Failed to generate summary' });
             setActiveView('web-analysis-raw');
+        }
+    };
+
+    const saveRawEdit = async () => {
+        setRawEditError(null);
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(rawEditValue);
+        } catch {
+            setRawEditError('Invalid JSON — please fix syntax errors before saving.');
+            return;
+        }
+        setIsSavingRaw(true);
+        try {
+            const res = await fetch('/api/fact-sheet/canonical', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceSlug, sectionId, canonical: parsed }),
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                setRawEditError(data.error || 'Save failed');
+            } else {
+                onProcessed();
+            }
+        } catch {
+            setRawEditError('Network error — could not save.');
+        } finally {
+            setIsSavingRaw(false);
         }
     };
 
@@ -748,9 +782,42 @@ export default function FactSheetTab({
                         )}
 
                         {activeView === 'raw' && (
-                            <pre className="text-xs text-gray-800 bg-gray-50 rounded-lg p-3 overflow-auto whitespace-pre-wrap border border-gray-200">
-                                {JSON.stringify(canonical, null, 2)}
-                            </pre>
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-700 font-medium">Edit canonical JSON directly — changes are saved to disk.</span>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setRawEditValue(JSON.stringify(canonical, null, 2))}
+                                            className="px-2 py-1 text-xs text-gray-700 border border-gray-300 rounded hover:bg-gray-100"
+                                            title="Reset to current loaded data"
+                                        >
+                                            Reset
+                                        </button>
+                                        <button
+                                            onClick={saveRawEdit}
+                                            disabled={isSavingRaw}
+                                            className={`px-3 py-1 text-xs font-medium rounded text-white ${
+                                                isSavingRaw ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                                            }`}
+                                        >
+                                            {isSavingRaw ? 'Saving...' : 'Save'}
+                                        </button>
+                                    </div>
+                                </div>
+                                {rawEditError && (
+                                    <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-1.5">
+                                        {rawEditError}
+                                    </div>
+                                )}
+                                <textarea
+                                    value={rawEditValue || JSON.stringify(canonical, null, 2)}
+                                    onChange={(e) => { setRawEditValue(e.target.value); setRawEditError(null); }}
+                                    onFocus={(e) => { if (!rawEditValue) setRawEditValue(e.target.value); }}
+                                    className="w-full font-mono text-xs text-gray-800 bg-gray-50 rounded-lg p-3 border border-gray-200 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-y"
+                                    rows={30}
+                                    spellCheck={false}
+                                />
+                            </div>
                         )}
 
                         {/* Web Analysis Summary Tab */}
