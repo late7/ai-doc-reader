@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import path from 'path';
 import fs from 'fs/promises';
+import { getOpenAIClient, getServiceTier, withFlexRetry } from '@/lib/openaiClient';
 
 const VALID_SECTIONS = ['team-execution', 'business-potential-market', 'product-technology', 'economics-finance'];
 
@@ -122,7 +122,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { workspaceSlug } = body;
+        const { workspaceSlug, serviceTier } = body;
+        const useFlex = serviceTier === 'flex';
 
         if (!workspaceSlug) {
             return NextResponse.json({ error: 'workspaceSlug is required' }, { status: 400 });
@@ -187,7 +188,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No section data available. Process documents first.' }, { status: 400 });
         }
 
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const openai = getOpenAIClient({ flex: useFlex });
+        const service_tier = getServiceTier(useFlex);
 
         const contextParts: string[] = [
             `Here are the four due-diligence canonical documents:\n\n${JSON.stringify(canonicals, null, 2)}`,
@@ -202,7 +204,7 @@ export async function POST(request: NextRequest) {
             contextParts.push(`\n\nInternal Investment Memo (internal context only — use the facts but reframe for external investors per the reframing rules):\n\n${JSON.stringify(internalMemo, null, 2)}`);
         }
 
-        const response = await openai.responses.create({
+        const makeCall = () => openai.responses.create({
             model: process.env.OPENAI_MODEL || 'gpt-5.2',
             input: [
                 {
@@ -224,7 +226,9 @@ export async function POST(request: NextRequest) {
             reasoning: { effort: 'medium', summary: null },
             tools: [],
             store: false,
-        });
+            ...(service_tier && { service_tier }),
+        } as any);
+        const response = useFlex ? await withFlexRetry(makeCall) : await makeCall();
 
         // Extract response text
         let responseText: string | null = null;

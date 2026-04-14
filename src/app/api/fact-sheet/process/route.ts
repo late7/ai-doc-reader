@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import path from 'path';
 import fs from 'fs/promises';
 import { Buffer } from 'buffer';
+import { getOpenAIClient, getServiceTier, withFlexRetry } from '@/lib/openaiClient';
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.pptx', '.xlsx', '.xls', '.txt', '.md', '.csv'];
 const ALLOWED_MIME_TYPES: Record<string, string> = {
@@ -70,7 +70,8 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { workspaceSlug, sectionId, processNewOnly } = body;
+        const { workspaceSlug, sectionId, processNewOnly, serviceTier } = body;
+        const useFlex = serviceTier === 'flex';
 
         if (!workspaceSlug) {
             return NextResponse.json({ success: false, message: 'workspaceSlug is required' }, { status: 400 });
@@ -201,7 +202,8 @@ export async function POST(request: NextRequest) {
             };
         }
 
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const openai = getOpenAIClient({ flex: useFlex });
+        const service_tier = getServiceTier(useFlex);
         const processedSourceFiles: string[] = [];
 
         // Process each file
@@ -214,7 +216,7 @@ export async function POST(request: NextRequest) {
                 const base64Content = Buffer.from(fileBuffer).toString('base64');
                 const mimeType = ALLOWED_MIME_TYPES[file.ext] || 'application/octet-stream';
 
-                const response = await openai.responses.create({
+                const makeAnalysisCall = () => openai.responses.create({
                     model: process.env.OPENAI_MODEL || 'gpt-5.2',
                     input: [
                         {
@@ -233,7 +235,9 @@ export async function POST(request: NextRequest) {
                     reasoning: { effort: 'medium', summary: null },
                     tools: [],
                     store: false,
-                });
+                    ...(service_tier && { service_tier }),
+                } as any);
+                const response = useFlex ? await withFlexRetry(makeAnalysisCall) : await makeAnalysisCall();
 
                 const responseText = extractResponseText(response);
                 if (responseText) {
@@ -298,7 +302,7 @@ export async function POST(request: NextRequest) {
                     ? `{\n  "summary": "<markdown formatted summary>",\n  "score": <0-10 number>,\n  "financialMetrics": {\n    "currency": "<detected currency symbol, e.g. € or $ or null if unknown>",\n    "scalingNote": "<any overarching scale modifier found in the document, e.g. 'All figures in thousands (k)' or null>",\n    "items": [\n      {\n        "label": "<metric name, one of: Revenue | Investments | Ongoing Operating Expenses | EBIT | Profit | Funding Raised | Loans | Sales Estimate>",\n        "value": <plain number after normalizing scale, e.g. 1k -> 1000, 2.34M -> 2340000, or null if not found>,\n        "formatted": "<human-readable value with currency, e.g. '€1,234,000' or 'N/A'>",\n        "period": "<time period if stated, e.g. 'FY2023' or 'Q1 2024' or null>"\n      }\n    ]\n  }\n}\nFinancialMetrics rules:\n- Always include all 8 metric labels even if not found (use null value and 'N/A' formatted).\n- Detect scale modifiers like 'All figures in k€', 'in thousands', 'amounts in millions' and apply them globally.\n- Normalize shorthand: 1k -> 1000, 2.34M -> 2340000, 1.5B -> 1500000000.\n- Detect currency from context (€, $, £, CHF, etc.) — do NOT convert between currencies.\n- If multiple periods are present, use the most recent or most prominent.`
                     : `{\n  "summary": "<markdown formatted summary>",\n  "score": <0-10 number>\n}`;
 
-                const summaryResponse = await openai.responses.create({
+                const makeSummaryCall = () => openai.responses.create({
                     model: process.env.OPENAI_MODEL || 'gpt-5.2',
                     input: [
                         {
@@ -314,7 +318,9 @@ export async function POST(request: NextRequest) {
                     reasoning: { effort: 'medium', summary: null },
                     tools: [],
                     store: false,
-                });
+                    ...(service_tier && { service_tier }),
+                } as any);
+                const summaryResponse = useFlex ? await withFlexRetry(makeSummaryCall) : await makeSummaryCall();
 
                 const summaryText = extractResponseText(summaryResponse);
                 if (summaryText) {

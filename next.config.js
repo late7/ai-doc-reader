@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    instrumentationHook: true,
+  },
   typescript: {
     // Allow building even with type errors during development
     ignoreBuildErrors: true,

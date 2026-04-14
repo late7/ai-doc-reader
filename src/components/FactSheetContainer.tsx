@@ -641,6 +641,17 @@ export default function FactSheetContainer({ workspaceSlug }: FactSheetContainer
         globalProcessingRef.current = false;
         setGlobalProcessing(prev => ({ ...prev, active: false }));
 
+        // Clear the factSheetRequired flag since the pipeline completed successfully
+        try {
+            await fetch('/api/workspaces/factsheet-flag', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceSlug, factSheetRequired: false }),
+            });
+        } catch (flagErr) {
+            console.warn('[ProcessAll] Failed to clear factSheetRequired flag:', flagErr);
+        }
+
         await saveProcessAllStatus({
             active: false,
             sections: sectionIds,

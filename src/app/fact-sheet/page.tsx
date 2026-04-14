@@ -5,6 +5,7 @@ import WorkspaceSelector from '@/components/WorkspaceSelector';
 import DocumentUploader, { DocumentUploaderRef } from '@/components/DocumentUploader';
 import FactSheetContainer from '@/components/FactSheetContainer';
 import MainNavigation from '@/components/MainNavigation';
+import NightlyProcessingToggle from '@/components/NightlyProcessingToggle';
 import { usePersistentWorkspace } from '@/lib/usePersistentWorkspace';
 
 interface Workspace {
@@ -63,6 +64,13 @@ export default function FactSheetPage() {
                                     ref={documentUploaderRef}
                                     workspaceSlug={selectedWorkspace.slug}
                                     onUploadComplete={handleUploadComplete}
+                                />
+                            )}
+
+                            {selectedWorkspace && (
+                                <NightlyProcessingToggle
+                                    key={`nightly-${selectedWorkspace.slug}`}
+                                    workspaceSlug={selectedWorkspace.slug}
                                 />
                             )}
                         </div>

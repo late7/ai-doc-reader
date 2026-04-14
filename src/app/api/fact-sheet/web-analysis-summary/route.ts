@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import path from 'path';
 import fs from 'fs/promises';
+import { getOpenAIClient, getServiceTier, withFlexRetry } from '@/lib/openaiClient';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -95,7 +95,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { workspaceSlug, sectionId = 'business-potential-market' } = body;
+        const { workspaceSlug, sectionId = 'business-potential-market', serviceTier } = body;
+        const useFlex = serviceTier === 'flex';
 
         if (!workspaceSlug) {
             return NextResponse.json({ error: 'workspaceSlug is required' }, { status: 400 });
@@ -238,12 +239,11 @@ Please synthesize all of the above into a single executive ${sectionTitle} analy
         console.log('[web-summary] User prompt length:', userPrompt.length);
         console.log('[web-summary] Calling OpenAI...');
 
-        const openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY,
-        });
+        const openai = getOpenAIClient({ flex: useFlex });
+        const service_tier = getServiceTier(useFlex);
 
         const startTime = Date.now();
-        const response = await openai.responses.create({
+        const makeCall = () => openai.responses.create({
             model: process.env.OPENAI_MODEL || 'gpt-5.2',
             input: [
                 {
@@ -263,7 +263,9 @@ Please synthesize all of the above into a single executive ${sectionTitle} analy
                 format: { type: 'text' },
             },
             store: false,
-        });
+            ...(service_tier && { service_tier }),
+        } as any);
+        const response = useFlex ? await withFlexRetry(makeCall) : await makeCall();
 
         const elapsed = Date.now() - startTime;
         console.log('[web-summary] OpenAI response received in ' + elapsed + 'ms');

@@ -4,6 +4,7 @@ const PUBLIC_PATHS = [
   '/api/login',
   '/api/logout',
   '/api/chatapi', // Uses Basic Auth instead of session
+  '/api/cron/',   // Cron endpoints use Bearer token auth
   '/login',
   '/_next',
   '/favicon',
@@ -17,6 +18,16 @@ export function middleware(req: NextRequest) {
   }
 
   const token = req.cookies.get('auth_token')?.value;
+
+  // Allow internal cron pipeline calls authenticated via Bearer token
+  if (!token) {
+    const cronSecret = process.env.CRON_SECRET;
+    const authHeader = req.headers.get('authorization');
+    if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+      return NextResponse.next();
+    }
+  }
+
   if (!token) {
     if (pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) {
       const url = req.nextUrl.clone();

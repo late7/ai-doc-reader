@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { anythingLLM } from '@/lib/anythingllm';
 import { logger } from '@/lib/logger';
+import { setWorkspaceMeta } from '@/lib/workspaceMeta';
 
 export async function GET() {
   try {
@@ -44,6 +45,17 @@ export async function POST(request: Request) {
     }
 
     const workspace = await anythingLLM.createWorkspace(name);
+
+    // Set factSheetRequired flag for new workspaces — overnight cron will auto-process
+    const slug = workspace?.workspace?.slug || workspace?.slug;
+    if (slug) {
+      await setWorkspaceMeta(slug, {
+        createdAt: new Date().toISOString(),
+        factSheetRequired: true,
+        factSheetCompletedAt: null,
+      });
+    }
+
     return NextResponse.json(workspace);
   } catch (error) {
     logger.error('Error creating workspace:', error);
